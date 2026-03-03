@@ -1,0 +1,386 @@
+---
+title: "CustomPurchaseControllerProvider"
+description: "Provider component for implementing custom purchase handling logic"
+icon: "cart-shopping"
+---
+
+## Overview
+
+The `CustomPurchaseControllerProvider` component allows you to integrate your own purchase handling logic with the Superwall SDK. This is useful when you need to use a custom payment processor or have specific purchase flow requirements beyond the standard implementation.
+
+This component listens for purchase and restore events from Superwall and delegates them to your custom controller implementation.
+
+## Props
+
+<ParamField path="controller" type="CustomPurchaseControllerContext" required>
+  An object implementing the purchase controller interface with the following methods:
+  
+  <Expandable title="CustomPurchaseControllerContext">
+    <ParamField path="onPurchase" type="(params: OnPurchaseParams) => Promise<PurchaseResult | void>" required>
+      Called when the user initiates a purchase from a paywall. Should handle the purchase flow and return a result.
+      
+      **OnPurchaseParams** includes:
+      - `productId: string` - The product identifier to purchase
+      - `paywallInfo: PaywallInfo` - Information about the paywall that triggered the purchase
+      
+      **PurchaseResult** can be:
+      - `{ type: "purchased" }` - Purchase completed successfully
+      - `{ type: "cancelled" }` - User cancelled the purchase
+      - `{ type: "pending" }` - Purchase is pending (e.g., awaiting payment authorization)
+      - `{ type: "failed", error: string }` - Purchase failed with an error
+      
+      You can also return `void` to indicate a successful purchase (equivalent to `{ type: "purchased" }`).
+    </ParamField>
+    
+    <ParamField path="onPurchaseRestore" type="() => Promise<RestoreResult | void>" required>
+      Called when the user initiates a restore purchases action. Should handle the restore flow and return a result.
+      
+      **RestoreResult** can be:
+      - `{ type: "restored" }` - Restore completed successfully
+      - `{ type: "failed", error: string }` - Restore failed with an error
+      
+      You can also return `void` to indicate a successful restore (equivalent to `{ type: "restored" }`).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="children" type="React.ReactNode" required>
+  Your app content that will have access to the custom purchase controller.
+</ParamField>
+
+## Usage
+
+### Basic Setup with RevenueCat
+
+```tsx
+import { CustomPurchaseControllerProvider } from 'expo-superwall';
+import Purchases from 'react-native-purchases';
+
+const purchaseController = {
+  async onPurchase(params) {
+    try {
+      const { productId } = params;
+      
+      // Purchase using RevenueCat
+      const purchaseResult = await Purchases.purchaseProduct(productId);
+      
+      if (purchaseResult.customerInfo.entitlements.active) {
+        return { type: "purchased" };
+      }
+      
+      return { type: "failed", error: "Purchase did not grant entitlement" };
+    } catch (error) {
+      if (error.userCancelled) {
+        return { type: "cancelled" };
+      }
+      return { type: "failed", error: error.message };
+    }
+  },
+  
+  async onPurchaseRestore() {
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      
+      if (Object.keys(customerInfo.entitlements.active).length > 0) {
+        return { type: "restored" };
+      }
+      
+      return { type: "failed", error: "No active subscriptions to restore" };
+    } catch (error) {
+      return { type: "failed", error: error.message };
+    }
+  }
+};
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <CustomPurchaseControllerProvider controller={purchaseController}>
+        <YourApp />
+      </CustomPurchaseControllerProvider>
+    </SuperwallProvider>
+  );
+}
+```
+
+### Complete Example with Error Handling
+
+```tsx
+import { CustomPurchaseControllerProvider, useUser } from 'expo-superwall';
+import Purchases from 'react-native-purchases';
+
+const purchaseController = {
+  async onPurchase(params) {
+    const { productId, paywallInfo } = params;
+    
+    console.log(`Purchasing ${productId} from paywall ${paywallInfo.name}`);
+    
+    try {
+      // Attempt purchase
+      const result = await Purchases.purchaseProduct(productId);
+      
+      // Check for active entitlements
+      const hasEntitlement = Object.keys(result.customerInfo.entitlements.active).length > 0;
+      
+      if (hasEntitlement) {
+        console.log('Purchase successful, entitlements granted');
+        return { type: "purchased" };
+      } else {
+        console.error('Purchase completed but no entitlements granted');
+        return { type: "failed", error: "Entitlement not granted" };
+      }
+    } catch (error) {
+      if (error.userCancelled) {
+        console.log('User cancelled purchase');
+        return { type: "cancelled" };
+      }
+      
+      console.error('Purchase failed:', error);
+      return { 
+        type: "failed", 
+        error: error.message || "Unknown purchase error" 
+      };
+    }
+  },
+  
+  async onPurchaseRestore() {
+    console.log('Restoring purchases');
+    
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      const activeEntitlements = customerInfo.entitlements.active;
+      
+      if (Object.keys(activeEntitlements).length > 0) {
+        console.log('Restore successful:', Object.keys(activeEntitlements));
+        return { type: "restored" };
+      } else {
+        console.log('No purchases to restore');
+        return { 
+          type: "failed", 
+          error: "No active subscriptions found" 
+        };
+      }
+    } catch (error) {
+      console.error('Restore failed:', error);
+      return { 
+        type: "failed", 
+        error: error.message || "Unknown restore error" 
+      };
+    }
+  }
+};
+
+function AppContent() {
+  const { setSubscriptionStatus } = useUser();
+  
+  // Sync subscription status with RevenueCat
+  useEffect(() => {
+    const syncStatus = async () => {
+      const info = await Purchases.getCustomerInfo();
+      const hasActive = Object.keys(info.entitlements.active).length > 0;
+      
+      await setSubscriptionStatus({
+        status: hasActive ? "ACTIVE" : "INACTIVE",
+        entitlements: hasActive 
+          ? Object.keys(info.entitlements.active).map(id => ({
+              id,
+              type: "SERVICE_LEVEL"
+            }))
+          : undefined
+      });
+    };
+    
+    syncStatus();
+  }, []);
+  
+  return <YourApp />;
+}
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <CustomPurchaseControllerProvider controller={purchaseController}>
+        <AppContent />
+      </CustomPurchaseControllerProvider>
+    </SuperwallProvider>
+  );
+}
+```
+
+### Using with Other Payment Providers
+
+```tsx
+import { CustomPurchaseControllerProvider } from 'expo-superwall';
+import * as InAppPurchases from 'expo-in-app-purchases';
+
+const purchaseController = {
+  async onPurchase(params) {
+    const { productId } = params;
+    
+    try {
+      await InAppPurchases.connectAsync();
+      
+      // Purchase the product
+      await InAppPurchases.purchaseItemAsync(productId);
+      
+      // Get purchase history
+      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+      const purchased = results.some(p => p.productId === productId);
+      
+      if (purchased) {
+        return { type: "purchased" };
+      }
+      
+      return { type: "failed", error: "Purchase not found in history" };
+    } catch (error) {
+      return { type: "failed", error: error.message };
+    } finally {
+      await InAppPurchases.disconnectAsync();
+    }
+  },
+  
+  async onPurchaseRestore() {
+    try {
+      await InAppPurchases.connectAsync();
+      
+      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+      
+      if (results.length > 0) {
+        return { type: "restored" };
+      }
+      
+      return { type: "failed", error: "No purchases to restore" };
+    } catch (error) {
+      return { type: "failed", error: error.message };
+    } finally {
+      await InAppPurchases.disconnectAsync();
+    }
+  }
+};
+```
+
+## useCustomPurchaseController Hook
+
+Access the purchase controller from child components using the `useCustomPurchaseController` hook:
+
+```tsx
+import { useCustomPurchaseController } from 'expo-superwall';
+
+function PurchaseButton({ productId }) {
+  const controller = useCustomPurchaseController();
+  
+  const handlePurchase = async () => {
+    if (!controller) {
+      console.error('Purchase controller not available');
+      return;
+    }
+    
+    const result = await controller.onPurchase({
+      productId,
+      paywallInfo: { /* paywall info */ }
+    });
+    
+    console.log('Purchase result:', result);
+  };
+  
+  return <Button onPress={handlePurchase} title="Purchase" />;
+}
+```
+
+## Return Values
+
+Both `onPurchase` and `onPurchaseRestore` can return either:
+
+1. **Explicit result object** with type and optional error
+2. **`void`** to indicate success (recommended for simple success cases)
+3. **Thrown error** which will be caught and converted to a failed result
+
+<Tabs>
+  <Tab title="Explicit Results">
+    ```tsx
+    async onPurchase(params) {
+      try {
+        await performPurchase(params.productId);
+        return { type: "purchased" };
+      } catch (error) {
+        return { type: "failed", error: error.message };
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Implicit Success">
+    ```tsx
+    async onPurchase(params) {
+      // Void return = success
+      await performPurchase(params.productId);
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Throw Errors">
+    ```tsx
+    async onPurchase(params) {
+      // Thrown errors are caught and converted to failed results
+      await performPurchase(params.productId);
+      // Will auto-convert to { type: "purchased" }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always handle errors">
+    Wrap your purchase logic in try-catch blocks and return appropriate error messages to help with debugging.
+    
+    ```tsx
+    try {
+      await purchase(productId);
+      return { type: "purchased" };
+    } catch (error) {
+      return { type: "failed", error: error.message };
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Sync subscription status">
+    After successful purchases or restores, update the Superwall subscription status using `setSubscriptionStatus` from `useUser`.
+    
+    ```tsx
+    const { setSubscriptionStatus } = useUser();
+    
+    // After successful purchase
+    await setSubscriptionStatus({
+      status: "ACTIVE",
+      entitlements: [{ id: "premium", type: "SERVICE_LEVEL" }]
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Log purchase events">
+    Add logging to track purchase flows and debug issues:
+    
+    ```tsx
+    console.log('Purchase initiated:', params.productId);
+    console.log('From paywall:', params.paywallInfo.name);
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle pending states">
+    Some payment methods may have pending states (e.g., bank transfers). Return `{ type: "pending" }` in these cases.
+    
+    ```tsx
+    if (isPending) {
+      return { type: "pending" };
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [SuperwallProvider](/api/components/superwall-provider) - Main SDK initialization component
+- [useUser](/api/hooks/use-user) - User and subscription management
+- [PurchaseController](/api/compat/purchase-controller) - Compat SDK purchase controller interface

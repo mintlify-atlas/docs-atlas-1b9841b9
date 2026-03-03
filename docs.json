@@ -49,6 +49,7 @@
               "guides/displaying-paywalls",
               "guides/managing-users",
               "guides/handling-subscriptions",
+              "guides/custom-purchase-handling",
               "guides/error-handling",
               "guides/integration-attributes",
               "guides/preloading-paywalls"
@@ -81,7 +82,8 @@
               "api/components/superwall-provider",
               "api/components/superwall-loading",
               "api/components/superwall-loaded",
-              "api/components/superwall-error"
+              "api/components/superwall-error",
+              "api/components/custom-purchase-controller-provider"
             ]
           },
           {
