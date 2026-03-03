@@ -1,0 +1,124 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Expo Superwall SDK",
+  "projectDescription": "Official Expo integration for Superwall, providing in-app paywall functionality for React Native applications with Expo SDK 53+",
+  "theme": "palm",
+  "primaryColor": "#5B4FFF",
+  "lightColor": "#8B7FFF",
+  "darkColor": "#4A3FE8",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/hooks-vs-compat",
+              "concepts/paywalls",
+              "concepts/placements",
+              "concepts/user-management",
+              "concepts/subscription-status"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/provider-setup",
+              "guides/displaying-paywalls",
+              "guides/managing-users",
+              "guides/handling-subscriptions",
+              "guides/error-handling",
+              "guides/integration-attributes",
+              "guides/preloading-paywalls"
+            ]
+          },
+          {
+            "group": "Migration",
+            "pages": [
+              "migration/from-react-native",
+              "migration/compat-sdk-guide"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Hooks API",
+            "pages": [
+              "api/hooks/use-superwall",
+              "api/hooks/use-placement",
+              "api/hooks/use-user",
+              "api/hooks/use-superwall-events"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "api/components/superwall-provider",
+              "api/components/superwall-loading",
+              "api/components/superwall-loaded",
+              "api/components/superwall-error"
+            ]
+          },
+          {
+            "group": "Compat SDK",
+            "pages": [
+              "api/compat/superwall-class",
+              "api/compat/superwall-delegate",
+              "api/compat/purchase-controller"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types/paywall-info",
+              "api/types/paywall-result",
+              "api/types/subscription-status",
+              "api/types/user-attributes",
+              "api/types/superwall-options"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Modern React Hooks API for paywall management",
+    "Cross-platform support for iOS and Android",
+    "User identification and attribute management",
+    "Subscription status tracking and entitlements",
+    "Placement-based paywall triggering with feature gating",
+    "Legacy Compat SDK for React Native migrations",
+    "Third-party integration support (Amplitude, Adjust, AppsFlyer, etc.)",
+    "Event-driven architecture with comprehensive callbacks",
+    "Preloading and performance optimization",
+    "Declarative loading and error state management"
+  ],
+  "publicApiSurface": [
+    "SuperwallProvider",
+    "useSuperwall",
+    "usePlacement",
+    "useUser",
+    "useSuperwallEvents",
+    "SuperwallLoading",
+    "SuperwallLoaded",
+    "SuperwallError",
+    "Superwall.configure (compat)",
+    "Superwall.shared.register (compat)",
+    "Superwall.shared.identify (compat)",
+    "Superwall.shared.setUserAttributes (compat)",
+    "SuperwallDelegate (compat)",
+    "PurchaseController (compat)"
+  ]
+}
