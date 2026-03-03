@@ -1,0 +1,561 @@
+---
+title: Subscription Status
+description: Understanding subscription status, entitlements, and how status is tracked
+---
+
+# Subscription Status
+
+Subscription status determines whether a user has access to premium features. Superwall tracks subscription state and uses it to control paywall presentation and feature access.
+
+## SubscriptionStatus Type
+
+The `SubscriptionStatus` is a discriminated union with three possible states:
+
+```typescript
+type SubscriptionStatus =
+  | { status: "UNKNOWN" }
+  | { status: "INACTIVE" }
+  | { status: "ACTIVE"; entitlements: Entitlement[] };
+```
+
+### Status Values
+
+| Status | Description | Entitlements |
+|--------|-------------|-------------|
+| `UNKNOWN` | Status not yet determined | N/A |
+| `INACTIVE` | User has no active subscription | Empty |
+| `ACTIVE` | User has active subscription | Array of entitlements |
+
+## Accessing Subscription Status
+
+### Using useUser Hook
+
+```tsx
+import { useUser } from "expo-superwall";
+
+function SubscriptionBadge() {
+  const { subscriptionStatus } = useUser();
+
+  if (!subscriptionStatus) return null;
+
+  switch (subscriptionStatus.status) {
+    case "ACTIVE":
+      return (
+        <View>
+          <Text>Premium Active</Text>
+          <Text>Entitlements: {subscriptionStatus.entitlements.length}</Text>
+        </View>
+      );
+    case "INACTIVE":
+      return <Text>Free Tier</Text>;
+    case "UNKNOWN":
+      return <ActivityIndicator />;
+  }
+}
+```
+
+### Reactive Updates
+
+Subscription status automatically updates throughout your app:
+
+```tsx
+const { subscriptionStatus } = useUser();
+
+// Component re-renders when status changes
+useEffect(() => {
+  if (subscriptionStatus?.status === "ACTIVE") {
+    console.log("User is now subscribed!");
+    unlockPremiumFeatures();
+  }
+}, [subscriptionStatus]);
+```
+
+## Entitlements
+
+### What are Entitlements?
+
+Entitlements represent specific features or content tiers that a user has access to through their subscription.
+
+```typescript
+interface Entitlement {
+  id: string;                    // Entitlement identifier
+  type: EntitlementType;         // Currently only "SERVICE_LEVEL"
+}
+
+type EntitlementType = "SERVICE_LEVEL";
+```
+
+### Example
+
+```tsx
+const { subscriptionStatus } = useUser();
+
+if (subscriptionStatus?.status === "ACTIVE") {
+  subscriptionStatus.entitlements.forEach((entitlement) => {
+    console.log("Active entitlement:", entitlement.id);
+    // Example: "premium_tier", "pro_features", "unlimited_access"
+  });
+}
+```
+
+### Checking Specific Entitlements
+
+```tsx
+function hasEntitlement(id: string): boolean {
+  const { subscriptionStatus } = useUser();
+
+  if (subscriptionStatus?.status !== "ACTIVE") return false;
+
+  return subscriptionStatus.entitlements.some((e) => e.id === id);
+}
+
+// Usage
+if (hasEntitlement("premium_tier")) {
+  showPremiumContent();
+}
+```
+
+## Setting Subscription Status
+
+### Automatic Management (Default)
+
+By default, Superwall manages subscription status automatically through in-app purchases.
+
+```tsx
+<SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+  {/* Status is automatically tracked */}
+</SuperwallProvider>
+```
+
+Superwall automatically:
+- Detects purchases
+- Validates receipts
+- Updates subscription status
+- Syncs across devices
+
+### Manual Management
+
+If you handle purchases yourself, set `manualPurchaseManagement: true`:
+
+```tsx
+<SuperwallProvider
+  apiKeys={{ ios: "YOUR_API_KEY" }}
+  options={{
+    manualPurchaseManagement: true,
+  }}
+>
+  {/* You manage status */}
+</SuperwallProvider>
+```
+
+Then manually update status:
+
+```tsx
+const { setSubscriptionStatus } = useUser();
+
+// After successful purchase
+await setSubscriptionStatus({
+  status: "ACTIVE",
+  entitlements: [
+    { id: "premium_tier", type: "SERVICE_LEVEL" },
+  ],
+});
+
+// After subscription expires
+await setSubscriptionStatus({
+  status: "INACTIVE",
+});
+```
+
+<Warning>
+  With `manualPurchaseManagement: true`, you must update subscription status yourself when purchases occur or expire.
+</Warning>
+
+## Fetching Entitlements
+
+Retrieve full entitlement information from Superwall servers:
+
+```tsx
+const { getEntitlements } = useUser();
+
+const entitlementsInfo = await getEntitlements();
+
+console.log("Active:", entitlementsInfo.active);
+console.log("Inactive:", entitlementsInfo.inactive);
+```
+
+### EntitlementsInfo Interface
+
+```typescript
+interface EntitlementsInfo {
+  active: Entitlement[];     // Currently active entitlements
+  inactive: Entitlement[];   // Previously active but now expired
+}
+```
+
+Example:
+
+```tsx
+const info = await getEntitlements();
+
+if (info.active.length > 0) {
+  console.log("User has active entitlements");
+  await setSubscriptionStatus({
+    status: "ACTIVE",
+    entitlements: info.active,
+  });
+} else {
+  console.log("No active entitlements");
+  await setSubscriptionStatus({
+    status: "INACTIVE",
+  });
+}
+```
+
+## Subscription Status Lifecycle
+
+```
+┌─────────────────────────────────────────────────┐
+│              App Launch                         │
+└─────────────────┬───────────────────────────────┘
+                  │
+                  ↓
+         ┌────────────────┐
+         │ Status: UNKNOWN│
+         └────────┬───────┘
+                  │
+         ┌────────┴────────────────────┐
+         │                             │
+         ↓                             ↓
+  ┌──────────────┐            ┌──────────────┐
+  │ Has Receipt? │            │ Manual Mode? │
+  └──────┬───────┘            └──────┬───────┘
+         │                           │
+    ┌────┴────┐                 ┌────┴─────┐
+    ↓         ↓                 ↓          ↓
+ ┌──────┐  ┌───────┐      ┌────────┐  ┌────────┐
+ │ACTIVE│  │INACTIVE│     │Wait for│  │INACTIVE│
+ └──────┘  └───────┘      │setStatus│ └────────┘
+                          └────────┘
+```
+
+## Status Change Events
+
+Listen for subscription status changes:
+
+```tsx
+import { useSuperwallEvents } from "expo-superwall";
+
+function SubscriptionStatusListener() {
+  useSuperwallEvents({
+    onSubscriptionStatusChange: (newStatus) => {
+      console.log("Status changed to:", newStatus.status);
+
+      if (newStatus.status === "ACTIVE") {
+        // User subscribed
+        analytics.track("Subscription Activated");
+        showWelcomeMessage();
+      } else if (newStatus.status === "INACTIVE") {
+        // Subscription expired
+        analytics.track("Subscription Expired");
+        showResubscribePrompt();
+      }
+    },
+  });
+
+  return null;
+}
+```
+
+### Compat SDK Delegate
+
+```tsx
+import Superwall, { SuperwallDelegate } from "expo-superwall/compat";
+
+class MyDelegate extends SuperwallDelegate {
+  subscriptionStatusDidChange(from, to) {
+    console.log(`Status changed: ${from} → ${to}`);
+
+    if (to.status === "ACTIVE") {
+      // Handle subscription activation
+    }
+  }
+}
+
+await Superwall.shared.setDelegate(new MyDelegate());
+```
+
+## Feature Gating Based on Status
+
+### Simple Check
+
+```tsx
+const { subscriptionStatus } = useUser();
+
+const isSubscribed = subscriptionStatus?.status === "ACTIVE";
+
+return (
+  <View>
+    {isSubscribed ? (
+      <PremiumContent />
+    ) : (
+      <UpgradePrompt />
+    )}
+  </View>
+);
+```
+
+### With Placement
+
+```tsx
+const { subscriptionStatus } = useUser();
+const { registerPlacement } = usePlacement();
+
+const accessFeature = async () => {
+  if (subscriptionStatus?.status === "ACTIVE") {
+    // Already subscribed - skip paywall
+    showFeature();
+  } else {
+    // Not subscribed - show paywall
+    await registerPlacement({
+      placement: "feature_gate",
+      feature: () => showFeature(),
+    });
+  }
+};
+```
+
+### Entitlement-Specific Gating
+
+```tsx
+function PremiumFeature({ requiredEntitlement }: { requiredEntitlement: string }) {
+  const { subscriptionStatus } = useUser();
+
+  const hasAccess =
+    subscriptionStatus?.status === "ACTIVE" &&
+    subscriptionStatus.entitlements.some((e) => e.id === requiredEntitlement);
+
+  if (!hasAccess) {
+    return <UpgradePrompt entitlement={requiredEntitlement} />;
+  }
+
+  return <FeatureContent />;
+}
+
+// Usage
+<PremiumFeature requiredEntitlement="premium_tier" />
+```
+
+## Status Persistence
+
+Subscription status is:
+
+- **Persisted locally** - Cached on device between sessions
+- **Synced from server** - Validated against Superwall backend
+- **Updated on events** - Refreshed when purchases occur
+- **Cross-device** - Synced when user is identified
+
+### Manual Refresh
+
+```tsx
+const { refresh } = useUser();
+
+// Force refresh from server
+const syncStatus = async () => {
+  await refresh();
+  console.log("Subscription status synced");
+};
+```
+
+## Common Patterns
+
+### Show Status Badge
+
+```tsx
+function StatusBadge() {
+  const { subscriptionStatus } = useUser();
+
+  if (subscriptionStatus?.status === "ACTIVE") {
+    return (
+      <View style={styles.badge}>
+        <Icon name="crown" />
+        <Text>Premium</Text>
+      </View>
+    );
+  }
+
+  return null;
+}
+```
+
+### Conditional Navigation
+
+```tsx
+function NavigateToPremiumScreen() {
+  const { subscriptionStatus } = useUser();
+  const { registerPlacement } = usePlacement();
+  const navigation = useNavigation();
+
+  const navigate = async () => {
+    if (subscriptionStatus?.status === "ACTIVE") {
+      navigation.navigate("PremiumScreen");
+    } else {
+      await registerPlacement({
+        placement: "premium_screen_gate",
+        feature: () => navigation.navigate("PremiumScreen"),
+      });
+    }
+  };
+
+  return <Button title="Go Premium" onPress={navigate} />;
+}
+```
+
+### Restore Purchases
+
+```tsx
+function RestorePurchasesButton() {
+  const [restoring, setRestoring] = useState(false);
+  const { subscriptionStatus } = useUser();
+
+  const restore = async () => {
+    setRestoring(true);
+    try {
+      // Superwall handles restoration automatically
+      // Status will update via event if purchases found
+      await restorePurchases();
+
+      if (subscriptionStatus?.status === "ACTIVE") {
+        Alert.alert("Success", "Purchases restored!");
+      } else {
+        Alert.alert("No Purchases", "No previous purchases found.");
+      }
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  return (
+    <Button
+      title="Restore Purchases"
+      onPress={restore}
+      disabled={restoring}
+    />
+  );
+}
+```
+
+### Track Subscription Metrics
+
+```tsx
+function SubscriptionMetrics() {
+  const { subscriptionStatus } = useUser();
+
+  useEffect(() => {
+    if (subscriptionStatus?.status === "ACTIVE") {
+      analytics.identify({
+        subscriptionStatus: "active",
+        entitlementCount: subscriptionStatus.entitlements.length,
+        entitlements: subscriptionStatus.entitlements.map((e) => e.id),
+      });
+    } else {
+      analytics.identify({
+        subscriptionStatus: subscriptionStatus?.status.toLowerCase() || "unknown",
+      });
+    }
+  }, [subscriptionStatus]);
+
+  return null;
+}
+```
+
+## Debugging Subscription Status
+
+### Log Status Changes
+
+```tsx
+const { subscriptionStatus } = useUser();
+
+useEffect(() => {
+  console.log("[SubscriptionStatus]", subscriptionStatus);
+}, [subscriptionStatus]);
+```
+
+### Check Status Directly
+
+```tsx
+import { useSuperwall } from "expo-superwall";
+
+const { getSubscriptionStatus } = useSuperwall();
+
+// Direct API call
+const status = await getSubscriptionStatus();
+console.log(status);
+```
+
+## Best Practices
+
+### 1. Use Reactive Status
+
+```tsx
+// ✅ Good - Reactive
+const { subscriptionStatus } = useUser();
+if (subscriptionStatus?.status === "ACTIVE") {
+  // Auto-updates when status changes
+}
+
+// ❌ Bad - One-time check
+const status = await getSubscriptionStatus();
+if (status.status === "ACTIVE") {
+  // Won't update if status changes
+}
+```
+
+### 2. Handle UNKNOWN State
+
+```tsx
+const { subscriptionStatus } = useUser();
+
+if (!subscriptionStatus || subscriptionStatus.status === "UNKNOWN") {
+  return <LoadingIndicator />;
+}
+
+// Now safe to check ACTIVE/INACTIVE
+```
+
+### 3. Don't Cache Manually
+
+```tsx
+// ❌ Bad - Stale data
+const [status, setStatus] = useState();
+const { subscriptionStatus } = useUser();
+useEffect(() => {
+  setStatus(subscriptionStatus);
+}, []);
+
+// ✅ Good - Always fresh
+const { subscriptionStatus } = useUser();
+// Use directly, SDK handles caching
+```
+
+### 4. Validate Entitlements
+
+```tsx
+function hasEntitlement(id: string): boolean {
+  const { subscriptionStatus } = useUser();
+
+  // Check status first
+  if (subscriptionStatus?.status !== "ACTIVE") {
+    return false;
+  }
+
+  // Then check specific entitlement
+  return subscriptionStatus.entitlements.some((e) => e.id === id);
+}
+```
+
+## Further Reading
+
+- [User Management](/concepts/user-management) - User identification and attributes
+- [Paywalls](/concepts/paywalls) - Paywall presentation and purchases
+- [Placements](/concepts/placements) - Feature gating with placements

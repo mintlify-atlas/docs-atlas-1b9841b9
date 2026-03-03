@@ -1,0 +1,267 @@
+---
+title: PaywallResult
+description: Outcome of a user's interaction with a paywall
+---
+
+`PaywallResult` represents the outcome of a user's interaction with a paywall. This discriminated union type indicates whether the user purchased a product, declined the paywall, or restored previous purchases.
+
+## Definition
+
+```typescript
+type PaywallResult =
+  | {
+      type: "purchased"
+      productId: string
+    }
+  | {
+      type: "declined"
+    }
+  | {
+      type: "restored"
+    }
+```
+
+## Result Types
+
+### Purchased
+
+The user successfully purchased a product through the paywall.
+
+<ResponseField name="type" type="'purchased'" required>
+  Indicates a successful purchase.
+</ResponseField>
+
+<ResponseField name="productId" type="string" required>
+  The identifier of the product that was purchased (e.g., SKU from App Store or Google Play).
+</ResponseField>
+
+### Declined
+
+The user explicitly declined or closed the paywall without making a purchase.
+
+<ResponseField name="type" type="'declined'" required>
+  Indicates the user closed the paywall without purchasing.
+</ResponseField>
+
+### Restored
+
+The user successfully restored their previous purchases through the paywall.
+
+<ResponseField name="type" type="'restored'" required>
+  Indicates successful restoration of previous purchases.
+</ResponseField>
+
+## Usage
+
+### With usePlacement Hook
+
+```typescript
+import { usePlacement } from 'expo-superwall'
+import type { PaywallResult } from 'expo-superwall'
+
+function FeatureGate() {
+  const { register } = usePlacement({
+    placement: 'premium_feature',
+    onDismiss: (info, result) => {
+      switch (result.type) {
+        case 'purchased':
+          console.log('User purchased:', result.productId)
+          // Grant access to feature
+          navigateToFeature()
+          break
+          
+        case 'restored':
+          console.log('Purchases restored')
+          // Verify subscription status and grant access
+          navigateToFeature()
+          break
+          
+        case 'declined':
+          console.log('User declined purchase')
+          // Show alternative content or return to previous screen
+          navigateBack()
+          break
+      }
+    }
+  })
+  
+  return (
+    <Button 
+      onPress={() => register()} 
+      title="Unlock Premium" 
+    />
+  )
+}
+```
+
+### Type Guards
+
+```typescript
+import type { PaywallResult } from 'expo-superwall'
+
+function handlePaywallResult(result: PaywallResult) {
+  if (result.type === 'purchased') {
+    // TypeScript knows result.productId exists here
+    trackPurchase(result.productId)
+  } else if (result.type === 'restored') {
+    trackRestoration()
+  } else {
+    // result.type === 'declined'
+    trackDecline()
+  }
+}
+```
+
+### Analytics Integration
+
+```typescript
+import { usePlacement } from 'expo-superwall'
+import * as Analytics from './analytics'
+
+function PremiumFeature() {
+  const { register } = usePlacement({
+    placement: 'feature_gate',
+    onDismiss: (info, result) => {
+      // Track paywall outcomes
+      Analytics.track('paywall_dismissed', {
+        paywall_id: info.identifier,
+        paywall_name: info.name,
+        result_type: result.type,
+        product_id: result.type === 'purchased' ? result.productId : undefined
+      })
+      
+      // Handle different outcomes
+      if (result.type === 'purchased') {
+        Analytics.track('purchase_completed', {
+          product_id: result.productId,
+          source: 'paywall',
+          paywall_id: info.identifier
+        })
+      }
+    }
+  })
+}
+```
+
+### Conditional Navigation
+
+```typescript
+import { usePlacement } from 'expo-superwall'
+import { useNavigation } from '@react-navigation/native'
+
+function ContentGate() {
+  const navigation = useNavigation()
+  
+  const { register } = usePlacement({
+    placement: 'content_unlock',
+    onDismiss: (info, result) => {
+      if (result.type === 'purchased' || result.type === 'restored') {
+        // User has access - navigate to premium content
+        navigation.navigate('PremiumContent')
+      } else {
+        // User declined - return to home
+        navigation.navigate('Home')
+      }
+    }
+  })
+  
+  return (
+    <Button 
+      onPress={() => register()} 
+      title="Access Premium Content" 
+    />
+  )
+}
+```
+
+### State Management
+
+```typescript
+import { useState } from 'react'
+import { usePlacement } from 'expo-superwall'
+import type { PaywallResult } from 'expo-superwall'
+
+function SubscriptionFlow() {
+  const [lastResult, setLastResult] = useState<PaywallResult | null>(null)
+  
+  const { register } = usePlacement({
+    placement: 'subscription_offer',
+    onDismiss: (info, result) => {
+      setLastResult(result)
+    }
+  })
+  
+  return (
+    <View>
+      <Button onPress={() => register()} title="Subscribe" />
+      
+      {lastResult && (
+        <Text>
+          Last result: {lastResult.type}
+          {lastResult.type === 'purchased' && (
+            ` - Product: ${lastResult.productId}`
+          )}
+        </Text>
+      )}
+    </View>
+  )
+}
+```
+
+## Result Flow
+
+The paywall result follows this lifecycle:
+
+1. **User opens paywall** - No result yet
+2. **User interacts with paywall**:
+   - Taps purchase button → Completes transaction → `purchased` result
+   - Taps restore button → Restores purchases → `restored` result  
+   - Taps close/back → Dismisses paywall → `declined` result
+3. **Paywall dismisses** - Result provided to `onDismiss` callback
+
+## Best Practices
+
+<Tip>
+**Always handle all result types** to ensure your app responds appropriately to every user action.
+</Tip>
+
+<Warning>
+**Don't assume `purchased` means the subscription is active.** Always verify the subscription status with your purchase verification system or the `subscriptionStatus` from `useUser()`.
+</Warning>
+
+```typescript
+import { usePlacement } from 'expo-superwall'
+import { useUser } from 'expo-superwall'
+
+function SecureFeatureGate() {
+  const { subscriptionStatus } = useUser()
+  
+  const { register } = usePlacement({
+    placement: 'premium_feature',
+    onDismiss: async (info, result) => {
+      if (result.type === 'purchased' || result.type === 'restored') {
+        // Wait for subscription status to update
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Verify subscription is actually active
+        if (subscriptionStatus.status === 'ACTIVE') {
+          grantAccess()
+        } else {
+          showError('Purchase verification pending')
+        }
+      }
+    }
+  })
+}
+```
+
+## Related Types
+
+- [PaywallInfo](/api/types/paywall-info) - Information about the paywall
+- [SubscriptionStatus](/api/types/subscription-status) - User's subscription state
+- [UserAttributes](/api/types/user-attributes) - User identification and custom attributes
+
+## Related Hooks
+
+- [usePlacement](/api/hooks/use-placement) - Register and present paywalls
+- [useUser](/api/hooks/use-user) - Access user data and subscription status

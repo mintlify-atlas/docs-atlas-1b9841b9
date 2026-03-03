@@ -1,0 +1,572 @@
+---
+title: "Compat SDK Guide"
+description: "Quick migration guide using expo-superwall/compat for minimal code changes"
+icon: "boxes-stacked"
+---
+
+## Overview
+
+The Compat SDK (`expo-superwall/compat`) provides a compatibility layer that closely matches the legacy `react-native-superwall` API. This allows you to migrate to `expo-superwall` with minimal code changes.
+
+<Info>
+  **Quick Migration**: The Compat SDK is designed for projects that need to migrate quickly without refactoring to React hooks. It maintains the familiar class-based API from `react-native-superwall`.
+</Info>
+
+## When to Use the Compat SDK
+
+Choose the Compat SDK if:
+
+- You need to migrate quickly with minimal code changes
+- Your codebase uses the class-based `Superwall.shared` API extensively
+- You prefer imperative API calls over React hooks
+- You're migrating a large codebase and want to minimize risk
+
+<Tip>
+  For new projects or if you want the best developer experience, consider using the [Hooks-based SDK](/migration/from-react-native#option-1-hooks-based-sdk) instead.
+</Tip>
+
+## Installation
+
+First, uninstall the old package and install the new one:
+
+```bash
+npm uninstall react-native-superwall
+npx expo install expo-superwall
+```
+
+<Warning>
+  **Expo SDK 53+ Required**: This SDK only supports Expo SDK version 53 and newer. For older versions, use the [legacy React Native SDK](https://github.com/superwall/react-native-superwall).
+</Warning>
+
+## Migration Steps
+
+### Step 1: Update Import Statement
+
+Change your import to use the compat package:
+
+<CodeGroup>
+
+```tsx Old
+import Superwall from 'react-native-superwall';
+```
+
+```tsx New
+import Superwall from 'expo-superwall/compat';
+```
+
+</CodeGroup>
+
+That's it! Most of your existing code should work without further changes.
+
+### Step 2: Update Configuration
+
+The configuration API is nearly identical, with one key difference: API keys are now separated by platform.
+
+<CodeGroup>
+
+```tsx Old (react-native-superwall)
+import Superwall from 'react-native-superwall';
+import { Platform } from 'react-native';
+import { useEffect } from 'react';
+
+export default function App() {
+  useEffect(() => {
+    const apiKey = Platform.OS === 'ios' 
+      ? 'your_ios_key'
+      : 'your_android_key';
+    
+    Superwall.configure({
+      apiKey,
+      options: {
+        paywalls: {
+          shouldPreload: true,
+        },
+      },
+    });
+  }, []);
+
+  return <YourApp />;
+}
+```
+
+```tsx New (expo-superwall/compat)
+import Superwall from 'expo-superwall/compat';
+import { Platform } from 'react-native';
+import { useEffect } from 'react';
+
+export default function App() {
+  useEffect(() => {
+    const apiKey = Platform.OS === 'ios' 
+      ? 'your_ios_key'
+      : 'your_android_key';
+    
+    Superwall.configure({
+      apiKey,
+      options: {
+        paywalls: {
+          shouldPreload: true,
+        },
+      },
+    });
+  }, []);
+
+  return <YourApp />;
+}
+```
+
+</CodeGroup>
+
+<Note>
+  The code is nearly identical! The main difference is the import path: `expo-superwall/compat` instead of `react-native-superwall`.
+</Note>
+
+### Step 3: Migrate API Calls
+
+Most API calls remain unchanged:
+
+#### User Identification
+
+```tsx
+// ✅ Works the same in both SDKs
+await Superwall.shared.identify({ userId: 'user_123' });
+```
+
+#### User Attributes
+
+```tsx
+// ✅ Works the same in both SDKs
+await Superwall.shared.setUserAttributes({
+  name: 'John Doe',
+  email: 'john@example.com',
+  customProperty: 'value',
+});
+```
+
+#### Register Placement
+
+```tsx
+// ✅ Works the same in both SDKs
+await Superwall.shared.register({
+  placement: 'my_placement',
+  params: { source: 'button_click' },
+  feature: () => {
+    console.log('Feature unlocked!');
+    // Your feature logic here
+  },
+});
+```
+
+#### Reset User
+
+```tsx
+// ✅ Works the same in both SDKs
+await Superwall.shared.reset();
+```
+
+## Using SuperwallDelegate
+
+The `SuperwallDelegate` class works identically to the legacy SDK:
+
+```tsx
+import Superwall, {
+  SuperwallDelegate,
+  EventType,
+  type SuperwallEventInfo,
+  type PaywallInfo,
+  type SubscriptionStatus,
+} from 'expo-superwall/compat';
+
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo: SuperwallEventInfo) {
+    switch (eventInfo.event.type) {
+      case EventType.paywallOpen:
+        console.log('Paywall opened');
+        break;
+      case EventType.paywallClose:
+        console.log('Paywall closed');
+        break;
+      case EventType.transactionComplete:
+        console.log('Transaction completed');
+        break;
+    }
+  }
+
+  subscriptionStatusDidChange(
+    from: SubscriptionStatus, 
+    to: SubscriptionStatus
+  ) {
+    console.log('Subscription status changed:', from.status, '->', to.status);
+  }
+
+  willPresentPaywall(paywallInfo: PaywallInfo) {
+    console.log('Will present paywall:', paywallInfo.name);
+  }
+
+  didDismissPaywall(paywallInfo: PaywallInfo) {
+    console.log('Did dismiss paywall:', paywallInfo.name);
+  }
+
+  handleCustomPaywallAction(name: string) {
+    console.log('Custom action:', name);
+  }
+}
+
+// Set the delegate
+const delegate = new MyDelegate();
+await Superwall.shared.setDelegate(delegate);
+```
+
+## Complete Example
+
+Here's a complete example showing common usage patterns:
+
+```tsx
+import { useEffect, useState } from 'react';
+import { View, Button, Text, Platform } from 'react-native';
+import Superwall, {
+  SuperwallDelegate,
+  EventType,
+  type SuperwallEventInfo,
+} from 'expo-superwall/compat';
+
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo: SuperwallEventInfo) {
+    switch (eventInfo.event.type) {
+      case EventType.paywallOpen:
+        console.log('Paywall opened');
+        break;
+      case EventType.paywallClose:
+        console.log('Paywall closed');
+        break;
+    }
+  }
+}
+
+export default function App() {
+  const [isConfigured, setIsConfigured] = useState(false);
+
+  useEffect(() => {
+    async function configureSuperwall() {
+      const apiKey = Platform.OS === 'ios'
+        ? 'your_ios_key'
+        : 'your_android_key';
+
+      await Superwall.configure({
+        apiKey,
+        options: {
+          paywalls: {
+            shouldPreload: true,
+          },
+        },
+      });
+
+      // Set delegate
+      const delegate = new MyDelegate();
+      await Superwall.shared.setDelegate(delegate);
+
+      setIsConfigured(true);
+    }
+
+    configureSuperwall();
+  }, []);
+
+  const handleIdentify = async () => {
+    await Superwall.shared.identify({ 
+      userId: `user_${Date.now()}` 
+    });
+  };
+
+  const handleSetAttributes = async () => {
+    await Superwall.shared.setUserAttributes({
+      platform: Platform.OS,
+      timestamp: new Date().toISOString(),
+    });
+  };
+
+  const handleShowPaywall = async () => {
+    await Superwall.shared.register({
+      placement: 'my_placement',
+      feature: () => {
+        console.log('Feature unlocked!');
+      },
+    });
+  };
+
+  if (!isConfigured) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Configuring Superwall...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, padding: 20, gap: 10 }}>
+      <Button title="Identify User" onPress={handleIdentify} />
+      <Button title="Set Attributes" onPress={handleSetAttributes} />
+      <Button title="Show Paywall" onPress={handleShowPaywall} />
+    </View>
+  );
+}
+```
+
+## Accessing Superwall.shared API
+
+All methods from the legacy SDK are available on `Superwall.shared`:
+
+```tsx
+import Superwall from 'expo-superwall/compat';
+
+// User management
+await Superwall.shared.identify({ userId });
+await Superwall.shared.setUserAttributes({ name: 'John' });
+await Superwall.shared.getUserAttributes();
+await Superwall.shared.reset();
+
+// Paywall registration
+await Superwall.shared.register({ placement: 'my_placement' });
+await Superwall.shared.getPresentationResult({ placement: 'my_placement' });
+await Superwall.shared.dismiss();
+
+// Preloading
+await Superwall.shared.preloadAllPaywalls();
+await Superwall.shared.preloadPaywalls(new Set(['placement1', 'placement2']));
+
+// Configuration and status
+await Superwall.shared.getConfigurationStatus();
+await Superwall.shared.getSubscriptionStatus();
+await Superwall.shared.setSubscriptionStatus(status);
+
+// Deep linking
+await Superwall.shared.handleDeepLink(url);
+
+// Assignments and experiments
+await Superwall.shared.getAssignments();
+await Superwall.shared.confirmAllAssignments();
+
+// Delegate
+await Superwall.shared.setDelegate(delegate);
+```
+
+## PaywallPresentationHandler
+
+Use handlers to respond to paywall events:
+
+```tsx
+import { PaywallPresentationHandler } from 'expo-superwall/compat';
+
+const handler = new PaywallPresentationHandler();
+
+handler.onPresent((info) => {
+  console.log('Paywall presented:', info.name);
+});
+
+handler.onDismiss((info, result) => {
+  console.log('Paywall dismissed:', result);
+});
+
+handler.onError((error) => {
+  console.error('Paywall error:', error);
+});
+
+handler.onSkip((reason) => {
+  console.log('Paywall skipped:', reason);
+});
+
+await Superwall.shared.register({
+  placement: 'my_placement',
+  handler,
+  feature: () => {
+    console.log('Feature unlocked!');
+  },
+});
+```
+
+## Exported Types
+
+All types from the legacy SDK are available:
+
+```tsx
+import {
+  // Classes
+  Superwall,
+  SuperwallDelegate,
+  PaywallPresentationHandler,
+  SuperwallOptions,
+  IdentityOptions,
+  PaywallInfo,
+  SubscriptionStatus,
+  SuperwallEventInfo,
+  
+  // Enums
+  EventType,
+  LogLevel,
+  LogScope,
+  ConfigurationStatus,
+  
+  // Types
+  type PaywallResult,
+  type PaywallSkippedReason,
+  type PurchaseController,
+  type Product,
+  type StoreProduct,
+} from 'expo-superwall/compat';
+```
+
+## Differences from Legacy SDK
+
+### Package Name
+
+```tsx
+// ❌ Old
+import Superwall from 'react-native-superwall';
+
+// ✅ New
+import Superwall from 'expo-superwall/compat';
+```
+
+### Configuration
+
+The configuration is nearly identical, but the SDK version is automatically appended:
+
+```tsx
+// The SDK automatically appends 'compat' to the version string
+// to help with analytics and debugging
+```
+
+### Minimum Requirements
+
+<Warning>
+  **Expo SDK 53+ Only**: Unlike the legacy SDK, `expo-superwall/compat` requires Expo SDK 53 or newer.
+</Warning>
+
+## Breaking Changes
+
+See the [Migration Guide](/migration/from-react-native#breaking-changes) for a complete list of breaking changes between versions.
+
+## Migration Checklist
+
+<Steps>
+  <Step title="Update dependencies">
+    ```bash
+    npm uninstall react-native-superwall
+    npx expo install expo-superwall
+    ```
+  </Step>
+  
+  <Step title="Update imports">
+    Replace all `import ... from 'react-native-superwall'` with `import ... from 'expo-superwall/compat'`
+  </Step>
+  
+  <Step title="Test configuration">
+    Verify that `Superwall.configure()` works correctly
+  </Step>
+  
+  <Step title="Test user flows">
+    Test identify, setUserAttributes, and reset functionality
+  </Step>
+  
+  <Step title="Test paywall registration">
+    Verify that placement registration and feature blocks work correctly
+  </Step>
+  
+  <Step title="Test delegates">
+    If using SuperwallDelegate, verify all event handlers work
+  </Step>
+  
+  <Step title="Test edge cases">
+    Test offline scenarios, error handling, and deep linking
+  </Step>
+</Steps>
+
+## Common Issues
+
+### Issue: "Cannot access Superwall.shared before configure"
+
+```tsx
+// ❌ Wrong: Accessing before configure
+const App = () => {
+  Superwall.shared.identify({ userId: 'user_123' }); // Error!
+  return <View />;
+};
+
+// ✅ Correct: Wait for configure to complete
+const App = () => {
+  useEffect(() => {
+    async function setup() {
+      await Superwall.configure({ apiKey });
+      await Superwall.shared.identify({ userId: 'user_123' });
+    }
+    setup();
+  }, []);
+  
+  return <View />;
+};
+```
+
+### Issue: "Expo SDK version not supported"
+
+<Warning>
+  **Solution**: Upgrade to Expo SDK 53 or newer, or continue using `react-native-superwall` for older versions.
+</Warning>
+
+### Issue: "Types not resolving correctly"
+
+```tsx
+// Ensure you're importing from the correct path
+import Superwall from 'expo-superwall/compat';
+import type { PaywallInfo } from 'expo-superwall/compat';
+```
+
+## Advantages of Compat SDK
+
+✅ **Minimal code changes** - Most code works unchanged
+
+✅ **Familiar API** - Same class-based API as legacy SDK
+
+✅ **Quick migration** - Migrate large codebases with confidence
+
+✅ **Full feature parity** - All features from legacy SDK available
+
+## Migrating to Hooks Later
+
+Once you've migrated to the Compat SDK, you can gradually migrate to the Hooks-based SDK:
+
+1. Start with new features using hooks
+2. Gradually refactor existing code
+3. Both APIs can coexist in the same app
+
+```tsx
+// You can use both in the same app!
+import { usePlacement } from 'expo-superwall'; // Hooks API
+import Superwall from 'expo-superwall/compat'; // Compat API
+
+// Just wrap your app with SuperwallProvider for hooks
+import { SuperwallProvider } from 'expo-superwall';
+
+<SuperwallProvider apiKeys={{ ios: API_KEY }}>
+  <YourApp />
+</SuperwallProvider>
+```
+
+## Getting Help
+
+If you encounter issues:
+
+- Review the [Migration Guide](/migration/from-react-native)
+- Check the [CHANGELOG](https://github.com/superwall/superwall-expo/blob/main/CHANGELOG.md)
+- Join our [Discord Community](https://discord.gg/superwall)
+- Contact [Support](mailto:jake@superwall.com)
+- [Report Issues](https://github.com/superwall/superwall-expo/issues)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Hooks-based SDK" icon="react" href="/migration/from-react-native#option-1-hooks-based-sdk">
+    Learn about migrating to the modern hooks-based API
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/compat/superwall-class">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>

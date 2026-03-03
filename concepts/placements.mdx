@@ -1,0 +1,509 @@
+---
+title: Placements
+description: Understanding placements and how to use them for feature gating
+---
+
+# Placements
+
+Placements are named triggers in your app where paywalls can be shown. They act as the bridge between your code and the campaigns you configure in the Superwall dashboard.
+
+## What is a Placement?
+
+A placement is:
+
+- **A unique identifier** - Like `"premium_feature"` or `"onboarding_paywall"`
+- **A trigger point** - Where in your app a paywall might appear
+- **Campaign-driven** - Whether it shows a paywall is determined by dashboard rules
+- **Event-based** - Tracks user actions for analytics and targeting
+
+### Placement Flow
+
+```
+User Action → registerPlacement() → Campaign Rules → Outcome
+                                         ↓
+              ┌─────────────────────────┴─────────────────────────┐
+              │                                                     │
+         Show Paywall                                        Grant Access
+              │                                                     │
+    ┌─────────┴─────────┐                              ┌───────────┴──────────┐
+    │                   │                              │                      │
+ Purchase/Decline  Feature Gated?                Already Subscribed    No Match/Holdout
+```
+
+## Creating Placements
+
+### Step 1: Define in Dashboard
+
+1. Go to [Superwall Dashboard](https://superwall.com/dashboard)
+2. Navigate to **Campaigns**
+3. Create a new campaign
+4. Add a **Placement** (e.g., `fishing_feature`)
+5. Configure audience rules and paywall variant
+
+### Step 2: Register in Code
+
+Use the `usePlacement` hook to register the placement:
+
+```tsx
+import { usePlacement } from "expo-superwall";
+
+function FishingFeature() {
+  const { registerPlacement } = usePlacement();
+
+  const startFishing = async () => {
+    await registerPlacement({
+      placement: "fishing_feature",
+      feature: () => {
+        // This code runs if user has access
+        console.log("Starting fishing minigame...");
+        navigateToFishingGame();
+      },
+    });
+  };
+
+  return <Button title="Go Fishing" onPress={startFishing} />;
+}
+```
+
+## Placement Parameters
+
+Pass contextual data with your placement for audience targeting:
+
+```tsx
+await registerPlacement({
+  placement: "article_read",
+  params: {
+    articleId: "article_123",
+    category: "technology",
+    wordCount: 1500,
+    isPremium: true,
+  },
+  feature: () => showArticle(),
+});
+```
+
+These parameters are available in dashboard audience filters:
+
+```
+Rule: Show paywall if params.isPremium == true AND params.wordCount > 1000
+```
+
+<Note>
+  Parameters prefixed with `$` are reserved for Superwall. Arrays and nested objects are not supported.
+</Note>
+
+## Feature Gating
+
+Feature gating controls whether users can access functionality based on subscription status.
+
+### Gated Features
+
+User **must subscribe** to access:
+
+```tsx
+// Dashboard: Set "Feature Gating" to "Gated"
+await registerPlacement({
+  placement: "premium_tool",
+  feature: () => {
+    // Only executes if user is subscribed or purchases
+    showPremiumTool();
+  },
+});
+```
+
+**Behavior:**
+- Subscribed → Feature runs immediately
+- Not subscribed → Paywall shows
+  - User purchases → Feature runs
+  - User declines → Feature does NOT run
+
+### Non-Gated Features
+
+User can access **regardless of subscription**:
+
+```tsx
+// Dashboard: Set "Feature Gating" to "Non-Gated"
+await registerPlacement({
+  placement: "article_view",
+  feature: () => {
+    // Always executes after paywall interaction
+    showArticle();
+  },
+});
+```
+
+**Behavior:**
+- Show paywall (if campaign rules match)
+- User interacts (purchase, decline, close)
+- Feature runs **regardless** of outcome
+
+<Tip>
+  Non-gated features are ideal for "soft paywalls" where you show value before requiring payment.
+</Tip>
+
+## Placement Lifecycle Hooks
+
+Monitor placement events with callbacks:
+
+```tsx
+const { registerPlacement, state } = usePlacement({
+  onPresent: (paywallInfo) => {
+    console.log("Paywall shown:", paywallInfo.name);
+    analytics.track("Paywall Viewed", {
+      placement: "fishing_feature",
+      paywallId: paywallInfo.identifier,
+    });
+  },
+  onDismiss: (paywallInfo, result) => {
+    console.log("Paywall dismissed with:", result.type);
+    if (result.type === "purchased") {
+      analytics.track("Purchase Completed", {
+        productId: result.productId,
+        placement: "fishing_feature",
+      });
+    }
+  },
+  onSkip: (reason) => {
+    console.log("Paywall skipped:", reason.type);
+    // Reasons: "Holdout", "NoAudienceMatch", "PlacementNotFound"
+  },
+  onError: (error) => {
+    console.error("Paywall error:", error);
+    Sentry.captureException(new Error(error));
+  },
+});
+```
+
+### PaywallSkippedReason
+
+Paywalls can be skipped for several reasons:
+
+```typescript
+type PaywallSkippedReason =
+  | { type: "Holdout"; experiment: Experiment }        // A/B test control group
+  | { type: "NoAudienceMatch" }                       // Didn't match audience rules
+  | { type: "PlacementNotFound" };                    // Placement not configured
+```
+
+Example:
+
+```tsx
+usePlacement({
+  onSkip: (reason) => {
+    switch (reason.type) {
+      case "Holdout":
+        console.log("User in holdout for experiment:", reason.experiment.id);
+        // Track conversion without paywall
+        break;
+      case "NoAudienceMatch":
+        console.log("User doesn't match audience filters");
+        break;
+      case "PlacementNotFound":
+        console.warn("Placement not configured in dashboard!");
+        break;
+    }
+  },
+});
+```
+
+## Placement State
+
+Access reactive placement state:
+
+```tsx
+const { state } = usePlacement();
+
+return (
+  <View>
+    {state.status === "presented" && (
+      <ActivityIndicator /> // Show loading while paywall is open
+    )}
+    {state.status === "dismissed" && state.result.type === "purchased" && (
+      <Text>Thank you for subscribing!</Text>
+    )}
+  </View>
+);
+```
+
+**State Types:**
+
+```typescript
+type PaywallState =
+  | { status: "idle" }
+  | { status: "presented"; paywallInfo: PaywallInfo }
+  | { status: "dismissed"; result: PaywallResult }
+  | { status: "skipped"; reason: PaywallSkippedReason }
+  | { status: "error"; error: string };
+```
+
+## Multiple Placements
+
+Use separate `usePlacement` hooks for different features:
+
+```tsx
+function MultiFeatureScreen() {
+  const fishing = usePlacement({
+    onPresent: () => console.log("Fishing paywall"),
+  });
+
+  const hunting = usePlacement({
+    onPresent: () => console.log("Hunting paywall"),
+  });
+
+  return (
+    <View>
+      <Button
+        title="Go Fishing"
+        onPress={() => fishing.registerPlacement({
+          placement: "fishing_feature",
+          feature: () => navigateToFishing(),
+        })}
+      />
+      <Button
+        title="Go Hunting"
+        onPress={() => hunting.registerPlacement({
+          placement: "hunting_feature",
+          feature: () => navigateToHunting(),
+        })}
+      />
+    </View>
+  );
+}
+```
+
+Each hook maintains its own state and callbacks.
+
+## Getting Presentation Result
+
+Check what would happen **without** showing a paywall:
+
+```tsx
+import { useSuperwall } from "expo-superwall";
+
+const { getPresentationResult } = useSuperwall();
+
+const result = await getPresentationResult("premium_feature", {
+  userId: "user_123",
+});
+
+console.log(result);
+// Example: { willPresent: true, paywallId: "paywall_abc" }
+```
+
+Useful for:
+- Prefetching paywall assets
+- Showing "Premium" badges
+- Pre-validation logic
+
+## Preloading Placement Paywalls
+
+Preload paywalls for specific placements:
+
+```tsx
+import { useSuperwall } from "expo-superwall";
+
+const { preloadPaywalls } = useSuperwall();
+
+useEffect(() => {
+  // Preload paywalls for these placements
+  preloadPaywalls(["fishing_feature", "hunting_feature", "onboarding"]);
+}, []);
+```
+
+Benefits:
+- Faster paywall presentation
+- Reduced perceived latency
+- Better user experience
+
+## Best Practices
+
+### 1. Descriptive Naming
+
+```tsx
+// Good
+"premium_feature_unlock"
+"onboarding_step_3"
+"article_read_limit"
+
+// Bad
+"paywall1"
+"test"
+"feature"
+```
+
+### 2. Centralize Placement Names
+
+```tsx
+// constants/placements.ts
+export const PLACEMENTS = {
+  FISHING: "fishing_feature",
+  HUNTING: "hunting_feature",
+  PREMIUM_TOOLS: "premium_tools",
+  ONBOARDING: "onboarding_paywall",
+} as const;
+
+// Use in components
+import { PLACEMENTS } from "@/constants/placements";
+
+await registerPlacement({
+  placement: PLACEMENTS.FISHING,
+  feature: () => startFishing(),
+});
+```
+
+### 3. Track Placement Performance
+
+```tsx
+usePlacement({
+  onPresent: (info) => {
+    analytics.track("Paywall Presented", {
+      placement: "fishing_feature",
+      paywallId: info.identifier,
+      loadTime: info.webViewLoadDuration,
+    });
+  },
+  onDismiss: (info, result) => {
+    analytics.track("Paywall Dismissed", {
+      placement: "fishing_feature",
+      result: result.type,
+      timeSpent: Date.now() - presentedAt,
+    });
+  },
+});
+```
+
+### 4. Handle Errors Gracefully
+
+```tsx
+usePlacement({
+  onError: (error) => {
+    // Log error
+    console.error("Placement error:", error);
+    Sentry.captureException(new Error(error));
+
+    // Fallback behavior
+    showErrorToast("Unable to load subscription options");
+  },
+});
+```
+
+### 5. Test Without Dashboard
+
+During development, test placement registration even if not configured:
+
+```tsx
+const { registerPlacement } = usePlacement({
+  onSkip: (reason) => {
+    if (reason.type === "PlacementNotFound") {
+      // Expected during development
+      console.log("Placement not configured yet, executing feature anyway");
+    }
+  },
+});
+
+await registerPlacement({
+  placement: "new_feature", // Not configured yet
+  feature: () => {
+    // Feature still executes
+    showNewFeature();
+  },
+});
+```
+
+## Common Patterns
+
+### Metered Paywall
+
+```tsx
+function ArticleReader() {
+  const [articlesRead, setArticlesRead] = useState(0);
+  const { registerPlacement } = usePlacement();
+
+  const readArticle = async (id: string) => {
+    const count = articlesRead + 1;
+    setArticlesRead(count);
+
+    if (count > 3) {
+      await registerPlacement({
+        placement: "article_limit",
+        params: { articlesRead: count },
+        feature: () => openArticle(id),
+      });
+    } else {
+      openArticle(id);
+    }
+  };
+
+  return <ArticleList onPress={readArticle} />;
+}
+```
+
+### Onboarding Paywall
+
+```tsx
+function OnboardingFlow() {
+  const { registerPlacement } = usePlacement();
+
+  useEffect(() => {
+    // Show paywall at end of onboarding
+    registerPlacement({
+      placement: "onboarding_complete",
+      params: { completedSteps: 5 },
+      feature: () => {
+        // Continue to main app
+        navigation.navigate("Home");
+      },
+    });
+  }, []);
+
+  return <OnboardingSteps />;
+}
+```
+
+### Time-Based Trigger
+
+```tsx
+function TimedFeature() {
+  const { registerPlacement } = usePlacement();
+
+  useEffect(() => {
+    // Show paywall after 10 seconds
+    const timer = setTimeout(() => {
+      registerPlacement({
+        placement: "time_based_offer",
+        params: { secondsInApp: 10 },
+      });
+    }, 10000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return <AppContent />;
+}
+```
+
+## Compat SDK Equivalent
+
+For those using the Compat SDK:
+
+```tsx
+import Superwall from "expo-superwall/compat";
+
+await Superwall.shared.register({
+  placement: "fishing_feature",
+  params: { level: 5 },
+  handler: {
+    onPresentHandler: (info) => console.log("Presented", info),
+    onDismissHandler: (info, result) => console.log("Dismissed", result),
+    onErrorHandler: (error) => console.error("Error", error),
+    onSkipHandler: (reason) => console.log("Skipped", reason),
+  },
+  feature: () => startFishing(),
+});
+```
+
+## Further Reading
+
+- [Paywalls](/concepts/paywalls) - Understanding paywall lifecycle
+- [User Management](/concepts/user-management) - Targeting with user attributes
+- [Subscription Status](/concepts/subscription-status) - Checking subscription state

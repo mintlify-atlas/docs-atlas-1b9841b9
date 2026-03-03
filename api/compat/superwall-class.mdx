@@ -1,0 +1,732 @@
+---
+title: "Superwall Class"
+description: "Core Superwall class for SDK configuration and paywall management"
+---
+
+The `Superwall` class is the main entry point for the Compat SDK. It provides methods for configuring the SDK, registering placements, managing user identity, and controlling paywall presentation.
+
+## Installation
+
+```bash
+npx expo install expo-superwall
+```
+
+## Import
+
+```typescript
+import Superwall from "expo-superwall/compat"
+```
+
+## Configuration
+
+### configure()
+
+Configures a shared instance of Superwall for use throughout your app. Call this as soon as your app starts to initialize the SDK.
+
+```typescript
+static async configure({
+  apiKey: string,
+  options?: PartialSuperwallOptions,
+  purchaseController?: PurchaseController,
+  completion?: () => void
+}): Promise<Superwall>
+```
+
+<ParamField path="apiKey" type="string" required>
+  Your Superwall API Key from the dashboard settings. Get your key from the [Superwall Dashboard](https://superwall.com/dashboard).
+</ParamField>
+
+<ParamField path="options" type="PartialSuperwallOptions">
+  Optional configuration object to customize SDK appearance and behavior. See [SuperwallOptions](/api/compat/types#superwalloptions) for available options.
+</ParamField>
+
+<ParamField path="purchaseController" type="PurchaseController">
+  Optional purchase controller for handling subscription logic yourself. See [PurchaseController](/api/compat/purchase-controller) for implementation details.
+</ParamField>
+
+<ParamField path="completion" type="() => void">
+  Optional callback invoked when Superwall finishes configuring.
+</ParamField>
+
+<ResponseField name="return" type="Promise<Superwall>">
+  Returns a promise that resolves to the configured Superwall instance.
+</ResponseField>
+
+#### Example
+
+```typescript
+import Superwall from "expo-superwall/compat"
+import { Platform } from "react-native"
+
+useEffect(() => {
+  const apiKey = Platform.OS === "ios"
+    ? "yourSuperwall_iOSKey"
+    : "yourSuperwall_androidKey"
+  
+  Superwall.configure({
+    apiKey,
+    options: {
+      paywalls: {
+        shouldPreload: true
+      }
+    },
+    completion: () => {
+      console.log("Superwall configured")
+    }
+  })
+}, [])
+```
+
+### shared
+
+Returns the configured shared instance of Superwall.
+
+```typescript
+static get shared(): Superwall
+```
+
+<Warning>
+  You must call `Superwall.configure()` before accessing `Superwall.shared`.
+</Warning>
+
+<ResponseField name="return" type="Superwall">
+  The shared Superwall instance.
+</ResponseField>
+
+#### Example
+
+```typescript
+const superwall = Superwall.shared
+```
+
+## Placement Registration
+
+### register()
+
+Registers a placement to access a feature. When added to a campaign on the Superwall Dashboard, it can trigger a paywall based on audience filters and subscription status.
+
+```typescript
+async register({
+  placement: string,
+  params?: Map<string, any> | Record<string, any>,
+  handler?: PaywallPresentationHandler,
+  feature?: () => void
+}): Promise<void>
+```
+
+<ParamField path="placement" type="string" required>
+  The name of the placement to register. Must match a placement configured in your Superwall Dashboard.
+</ParamField>
+
+<ParamField path="params" type="Map<string, any> | Record<string, any>">
+  Optional parameters to pass with the placement. Can be referenced in campaign audience filters. Keys beginning with `$` are reserved. Arrays and dictionaries are not supported.
+</ParamField>
+
+<ParamField path="handler" type="PaywallPresentationHandler">
+  Optional handler that receives status updates about paywall presentation. See [PaywallPresentationHandler](/api/compat/types#paywallpresentationhandler).
+</ParamField>
+
+<ParamField path="feature" type="() => void">
+  Optional callback executed after registration. For non-gated paywalls, runs when dismissed or if user is paying. For gated paywalls, runs only if user is paying or begins paying.
+</ParamField>
+
+<ResponseField name="return" type="Promise<void>">
+  Resolves when registration completes. If `feature` callback is provided, resolves after feature is executed.
+</ResponseField>
+
+#### Example with Feature Callback
+
+```typescript
+Superwall.shared.register({
+  placement: "premium_feature",
+  params: {
+    source: "main_menu"
+  },
+  feature: () => {
+    // Execute feature logic after paywall handling
+    console.log("User accessed premium feature")
+  }
+})
+```
+
+#### Example with Promise Chaining
+
+```typescript
+await Superwall.shared.register({
+  placement: "premium_feature"
+})
+
+// Execute feature logic after registration
+console.log("Placement registered")
+```
+
+#### Example with Presentation Handler
+
+```typescript
+import { PaywallPresentationHandler } from "expo-superwall/compat"
+
+const handler = new PaywallPresentationHandler()
+
+handler.onPresent((info) => {
+  console.log("Paywall presented:", info.name)
+})
+
+handler.onDismiss((info, result) => {
+  console.log("Paywall dismissed:", result)
+})
+
+handler.onError((error) => {
+  console.error("Paywall error:", error)
+})
+
+Superwall.shared.register({
+  placement: "premium_feature",
+  handler
+})
+```
+
+### getPresentationResult()
+
+Preemptively gets the result of registering a placement without presenting a paywall.
+
+```typescript
+async getPresentationResult({
+  placement: string,
+  params?: Map<string, any>
+}): Promise<PresentationResult>
+```
+
+<ParamField path="placement" type="string" required>
+  The placement name to check.
+</ParamField>
+
+<ParamField path="params" type="Map<string, any>">
+  Optional parameters to pass with the placement.
+</ParamField>
+
+<ResponseField name="return" type="Promise<PresentationResult>">
+  Result indicating whether a paywall would be presented. See [PresentationResult](/api/compat/types#presentationresult).
+</ResponseField>
+
+#### Example
+
+```typescript
+const result = await Superwall.shared.getPresentationResult({
+  placement: "premium_feature"
+})
+
+if (result instanceof PresentationResultPaywall) {
+  console.log("Paywall would be presented")
+}
+```
+
+## User Management
+
+### identify()
+
+Creates an account with Superwall by linking the provided userId to Superwall's automatically generated alias.
+
+```typescript
+async identify({
+  userId: string,
+  options?: IdentityOptions
+}): Promise<void>
+```
+
+<ParamField path="userId" type="string" required>
+  Your user's unique identifier from your backend system.
+</ParamField>
+
+<ParamField path="options" type="IdentityOptions">
+  Optional identity options. Set `restorePaywallAssignments` to `true` to restore paywall assignments from the server.
+</ParamField>
+
+#### Example
+
+```typescript
+await Superwall.shared.identify({ 
+  userId: "user_123" 
+})
+```
+
+### reset()
+
+Resets the userId, on-device paywall assignments, and data stored by Superwall.
+
+```typescript
+async reset(): Promise<void>
+```
+
+#### Example
+
+```typescript
+await Superwall.shared.reset()
+```
+
+### setUserAttributes()
+
+Sets user attributes for use in paywalls and on the Superwall dashboard.
+
+```typescript
+async setUserAttributes(
+  userAttributes: UserAttributes
+): Promise<void>
+```
+
+<ParamField path="userAttributes" type="UserAttributes" required>
+  Object containing custom attributes. Values can be any JSON-encodable value, URLs, or Dates. Keys beginning with `$` are reserved. Arrays and dictionaries are not supported.
+</ParamField>
+
+#### Example
+
+```typescript
+await Superwall.shared.setUserAttributes({
+  name: "John Doe",
+  email: "john@example.com",
+  age: 30,
+  isPremium: false
+})
+```
+
+### getUserAttributes()
+
+Retrieves the user attributes set using `setUserAttributes()`.
+
+```typescript
+async getUserAttributes(): Promise<UserAttributes>
+```
+
+<ResponseField name="return" type="Promise<UserAttributes>">
+  Object representing the user's attributes.
+</ResponseField>
+
+#### Example
+
+```typescript
+const attributes = await Superwall.shared.getUserAttributes()
+console.log(attributes)
+```
+
+## Subscription Status
+
+### setSubscriptionStatus()
+
+Sets the subscription status of the user. Required when using a PurchaseController.
+
+```typescript
+async setSubscriptionStatus(
+  status: SubscriptionStatus
+): Promise<void>
+```
+
+<ParamField path="status" type="SubscriptionStatus" required>
+  The new subscription status. See [SubscriptionStatus](/api/compat/types#subscriptionstatus).
+</ParamField>
+
+#### Example
+
+```typescript
+import { SubscriptionStatus } from "expo-superwall/compat"
+
+await Superwall.shared.setSubscriptionStatus(
+  SubscriptionStatus.Active(["premium"])
+)
+```
+
+### getSubscriptionStatus()
+
+Retrieves the current subscription status.
+
+```typescript
+async getSubscriptionStatus(): Promise<SubscriptionStatus>
+```
+
+<ResponseField name="return" type="Promise<SubscriptionStatus>">
+  The current subscription status.
+</ResponseField>
+
+#### Example
+
+```typescript
+const status = await Superwall.shared.getSubscriptionStatus()
+if (status.status === "ACTIVE") {
+  console.log("User is subscribed")
+}
+```
+
+## Experiment Assignments
+
+### getAssignments()
+
+Gets all experiment assignments and returns them in an array.
+
+```typescript
+async getAssignments(): Promise<Assignment[]>
+```
+
+<ResponseField name="return" type="Promise<Assignment[]>">
+  Array of experiment assignments.
+</ResponseField>
+
+<Note>
+  This method tracks the `getAssignments` event in the delegate.
+</Note>
+
+#### Example
+
+```typescript
+const assignments = await Superwall.shared.getAssignments()
+console.log("Assignments:", assignments)
+```
+
+### confirmAllAssignments()
+
+Confirms all experiment assignments and returns them in an array.
+
+```typescript
+async confirmAllAssignments(): Promise<Assignment[]>
+```
+
+<ResponseField name="return" type="Promise<Assignment[]>">
+  Array of confirmed experiment assignments.
+</ResponseField>
+
+<Note>
+  Assignments may differ when a placement is registered due to changes in user, placement, or device parameters.
+</Note>
+
+#### Example
+
+```typescript
+const assignments = await Superwall.shared.confirmAllAssignments()
+```
+
+## Paywall Control
+
+### dismiss()
+
+Dismisses the presented paywall, if one exists.
+
+```typescript
+async dismiss(): Promise<void>
+```
+
+#### Example
+
+```typescript
+await Superwall.shared.dismiss()
+```
+
+### preloadAllPaywalls()
+
+Preloads all paywalls that the user may see based on campaigns and placements.
+
+```typescript
+async preloadAllPaywalls(): Promise<void>
+```
+
+<Note>
+  First set `PaywallOptions.shouldPreload` to `false` when configuring the SDK, then call this function when you want preloading to begin.
+</Note>
+
+#### Example
+
+```typescript
+await Superwall.shared.preloadAllPaywalls()
+```
+
+### preloadPaywalls()
+
+Preloads paywalls for specific placements.
+
+```typescript
+async preloadPaywalls(
+  placementNames: Set<string>
+): Promise<void>
+```
+
+<ParamField path="placementNames" type="Set<string>" required>
+  Set of placement names to preload.
+</ParamField>
+
+#### Example
+
+```typescript
+await Superwall.shared.preloadPaywalls(
+  new Set(["premium_feature", "onboarding"])
+)
+```
+
+## Delegate
+
+### setDelegate()
+
+Sets the delegate that handles Superwall lifecycle events.
+
+```typescript
+async setDelegate(
+  delegate: SuperwallDelegate | undefined
+): Promise<void>
+```
+
+<ParamField path="delegate" type="SuperwallDelegate | undefined" required>
+  An object implementing the SuperwallDelegate interface, or `undefined` to remove the delegate. See [SuperwallDelegate](/api/compat/superwall-delegate).
+</ParamField>
+
+#### Example
+
+```typescript
+import { SuperwallDelegate } from "expo-superwall/compat"
+
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo) {
+    console.log("Event:", eventInfo.event.type)
+  }
+  
+  subscriptionStatusDidChange(from, to) {
+    console.log(`Status changed from ${from.status} to ${to.status}`)
+  }
+}
+
+const delegate = new MyDelegate()
+await Superwall.shared.setDelegate(delegate)
+```
+
+## Configuration Status
+
+### getConfigurationStatus()
+
+Retrieves the current configuration status of the SDK.
+
+```typescript
+async getConfigurationStatus(): Promise<ConfigurationStatus>
+```
+
+<ResponseField name="return" type="Promise<ConfigurationStatus>">
+  The configuration status: `PENDING`, `CONFIGURED`, or `FAILED`.
+</ResponseField>
+
+#### Example
+
+```typescript
+const status = await Superwall.shared.getConfigurationStatus()
+if (status === ConfigurationStatus.CONFIGURED) {
+  console.log("SDK is ready")
+}
+```
+
+## Entitlements
+
+### getEntitlements()
+
+Retrieves the entitlements tied to the device.
+
+```typescript
+async getEntitlements(): Promise<EntitlementsInfo>
+```
+
+<ResponseField name="return" type="Promise<EntitlementsInfo>">
+  Object containing entitlements information.
+</ResponseField>
+
+#### Example
+
+```typescript
+const entitlements = await Superwall.shared.getEntitlements()
+console.log("Entitlements:", entitlements)
+```
+
+## Deep Links
+
+### handleDeepLink()
+
+Handles a deep link URL.
+
+```typescript
+async handleDeepLink(url: string): Promise<boolean>
+```
+
+<ParamField path="url" type="string" required>
+  The deep link URL to handle.
+</ParamField>
+
+<ResponseField name="return" type="Promise<boolean>">
+  Returns `true` if the deep link was handled by Superwall.
+</ResponseField>
+
+#### Example
+
+```typescript
+const handled = await Superwall.shared.handleDeepLink(
+  "myapp://paywall"
+)
+if (handled) {
+  console.log("Deep link handled by Superwall")
+}
+```
+
+## UI Customization
+
+### setInterfaceStyle()
+
+Sets the user interface style, overriding the system setting.
+
+```typescript
+async setInterfaceStyle(
+  style: InterfaceStyle | null
+): Promise<void>
+```
+
+<ParamField path="style" type="InterfaceStyle | null" required>
+  The desired interface style (`light`, `dark`), or `null` to use system setting.
+</ParamField>
+
+#### Example
+
+```typescript
+import { InterfaceStyle } from "expo-superwall/compat"
+
+await Superwall.shared.setInterfaceStyle(InterfaceStyle.Dark)
+```
+
+### setLogLevel()
+
+Sets the logging level for the SDK.
+
+```typescript
+async setLogLevel(level: LogLevel): Promise<void>
+```
+
+<ParamField path="level" type="LogLevel" required>
+  The log level to set.
+</ParamField>
+
+#### Example
+
+```typescript
+import { LogLevel } from "expo-superwall/compat"
+
+await Superwall.shared.setLogLevel(LogLevel.Debug)
+```
+
+## Integration Attributes
+
+### setIntegrationAttributes()
+
+Sets attributes for third-party integrations.
+
+```typescript
+async setIntegrationAttributes(
+  attributes: IntegrationAttributes
+): Promise<void>
+```
+
+<ParamField path="attributes" type="IntegrationAttributes" required>
+  Object mapping integration attribute keys to their IDs.
+</ParamField>
+
+#### Example
+
+```typescript
+await Superwall.shared.setIntegrationAttributes({
+  mixpanelDistinctId: "user_123"
+})
+```
+
+### getIntegrationAttributes()
+
+Gets the currently set integration attributes.
+
+```typescript
+async getIntegrationAttributes(): Promise<Record<string, string>>
+```
+
+<ResponseField name="return" type="Promise<Record<string, string>>">
+  Object mapping integration attributes to their IDs.
+</ResponseField>
+
+#### Example
+
+```typescript
+const attributes = await Superwall.shared.getIntegrationAttributes()
+console.log(attributes)
+```
+
+## Complete Example
+
+```typescript
+import Superwall, {
+  SuperwallDelegate,
+  EventType,
+  SubscriptionStatus
+} from "expo-superwall/compat"
+import { Platform, useEffect } from "react-native"
+
+// Define delegate
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo) {
+    switch (eventInfo.event.type) {
+      case EventType.paywallOpen:
+        console.log("Paywall opened")
+        break
+      case EventType.paywallClose:
+        console.log("Paywall closed")
+        break
+      case EventType.transactionComplete:
+        console.log("Purchase completed")
+        break
+    }
+  }
+
+  subscriptionStatusDidChange(from, to) {
+    console.log(`Subscription changed: ${from.status} -> ${to.status}`)
+  }
+}
+
+function App() {
+  useEffect(() => {
+    const initialize = async () => {
+      // Configure SDK
+      const apiKey = Platform.OS === "ios"
+        ? "pk_ios_xxxxx"
+        : "pk_android_xxxxx"
+      
+      await Superwall.configure({ apiKey })
+      
+      // Set delegate
+      const delegate = new MyDelegate()
+      await Superwall.shared.setDelegate(delegate)
+      
+      // Identify user
+      await Superwall.shared.identify({ userId: "user_123" })
+      
+      // Set user attributes
+      await Superwall.shared.setUserAttributes({
+        name: "John Doe",
+        email: "john@example.com"
+      })
+    }
+    
+    initialize()
+  }, [])
+  
+  const showPremiumFeature = () => {
+    Superwall.shared.register({
+      placement: "premium_feature",
+      feature: () => {
+        console.log("User accessed premium feature")
+      }
+    })
+  }
+  
+  return (
+    // Your app UI
+  )
+}
+```
+
+## See Also
+
+- [SuperwallDelegate](/api/compat/superwall-delegate) - Event handler methods
+- [PurchaseController](/api/compat/purchase-controller) - Custom purchase handling
+- [Getting Started Guide](/compat/getting-started) - Complete setup guide

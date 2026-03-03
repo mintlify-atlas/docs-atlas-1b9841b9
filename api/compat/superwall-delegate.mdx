@@ -1,0 +1,690 @@
+---
+title: "SuperwallDelegate"
+description: "Handle Superwall lifecycle events and user actions"
+---
+
+The `SuperwallDelegate` class provides methods that are called at various points in the Superwall lifecycle. Extend this class and override methods to implement custom logic for events like paywall presentation, subscription changes, and user actions.
+
+## Import
+
+```typescript
+import { SuperwallDelegate } from "expo-superwall/compat"
+```
+
+## Usage
+
+Create a custom delegate by extending `SuperwallDelegate` and overriding the methods you want to handle:
+
+```typescript
+import { 
+  SuperwallDelegate,
+  EventType,
+  type SuperwallEventInfo,
+  type PaywallInfo,
+  type SubscriptionStatus
+} from "expo-superwall/compat"
+
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo: SuperwallEventInfo) {
+    switch (eventInfo.event.type) {
+      case EventType.paywallOpen:
+        console.log("Paywall opened:", eventInfo.event.paywallInfo?.name)
+        break
+      case EventType.paywallClose:
+        console.log("Paywall closed")
+        break
+      case EventType.transactionComplete:
+        console.log("Transaction completed")
+        break
+    }
+  }
+  
+  subscriptionStatusDidChange(from: SubscriptionStatus, to: SubscriptionStatus) {
+    console.log(`Status changed: ${from.status} -> ${to.status}`)
+  }
+}
+
+// Set the delegate
+const delegate = new MyDelegate()
+await Superwall.shared.setDelegate(delegate)
+```
+
+## Delegate Methods
+
+### handleSuperwallEvent()
+
+Called for all Superwall internal events. Use this method to track analytics or respond to SDK events.
+
+```typescript
+handleSuperwallEvent(eventInfo: SuperwallEventInfo): void
+```
+
+<ParamField path="eventInfo" type="SuperwallEventInfo">
+  Information about the Superwall event, including event type and associated data.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo) {
+    const { event, params } = eventInfo
+    
+    switch (event.type) {
+      case EventType.paywallOpen:
+        console.log("Paywall:", event.paywallInfo?.name)
+        // Track in analytics
+        analytics.track("paywall_opened", {
+          paywallId: event.paywallInfo?.identifier
+        })
+        break
+        
+      case EventType.transactionComplete:
+        console.log("Purchase:", event.product?.productIdentifier)
+        // Track conversion
+        analytics.track("purchase_completed", {
+          productId: event.product?.productIdentifier
+        })
+        break
+        
+      case EventType.paywallDecline:
+        console.log("User declined paywall")
+        break
+    }
+  }
+}
+```
+
+#### Common Event Types
+
+<AccordionGroup>
+  <Accordion title="Paywall Events">
+    - `EventType.paywallOpen` - Paywall opened
+    - `EventType.paywallClose` - Paywall closed
+    - `EventType.paywallDecline` - User declined paywall
+    - `EventType.paywallResponseLoadStart` - Paywall response loading started
+    - `EventType.paywallResponseLoadComplete` - Paywall response loaded
+    - `EventType.paywallResponseLoadFail` - Paywall response failed to load
+    - `EventType.paywallWebviewLoadStart` - Paywall webview loading started
+    - `EventType.paywallWebviewLoadComplete` - Paywall webview loaded
+    - `EventType.paywallWebviewLoadFail` - Paywall webview failed to load
+    - `EventType.paywallProductsLoadStart` - Products loading started
+    - `EventType.paywallProductsLoadComplete` - Products loaded
+    - `EventType.paywallProductsLoadFail` - Products failed to load
+  </Accordion>
+  
+  <Accordion title="Transaction Events">
+    - `EventType.transactionStart` - Transaction started
+    - `EventType.transactionComplete` - Transaction completed
+    - `EventType.transactionFail` - Transaction failed
+    - `EventType.transactionAbandon` - Transaction abandoned
+    - `EventType.transactionRestore` - Transaction restored
+    - `EventType.transactionTimeout` - Transaction timed out
+  </Accordion>
+  
+  <Accordion title="Subscription Events">
+    - `EventType.subscriptionStart` - Subscription started
+    - `EventType.freeTrialStart` - Free trial started
+    - `EventType.subscriptionStatusDidChange` - Subscription status changed
+    - `EventType.nonRecurringProductPurchase` - Non-recurring product purchased
+  </Accordion>
+  
+  <Accordion title="App Lifecycle Events">
+    - `EventType.appOpen` - App opened
+    - `EventType.appClose` - App closed
+    - `EventType.appLaunch` - App launched
+    - `EventType.appInstall` - App installed
+    - `EventType.sessionStart` - Session started
+  </Accordion>
+  
+  <Accordion title="Configuration Events">
+    - `EventType.firstSeen` - First time user seen
+    - `EventType.configRefresh` - Config refreshed
+    - `EventType.identityAlias` - User identity aliased
+    - `EventType.deviceAttributes` - Device attributes set
+    - `EventType.userAttributes` - User attributes set
+  </Accordion>
+  
+  <Accordion title="Other Events">
+    - `EventType.triggerFire` - Placement registered
+    - `EventType.deepLink` - Deep link opened
+    - `EventType.surveyResponse` - Survey response submitted
+    - `EventType.surveyClose` - Survey closed
+    - `EventType.restoreStart` - Restore started
+    - `EventType.restoreComplete` - Restore completed
+    - `EventType.restoreFail` - Restore failed
+  </Accordion>
+</AccordionGroup>
+
+### subscriptionStatusDidChange()
+
+Called when the user's subscription status changes.
+
+```typescript
+subscriptionStatusDidChange(
+  from: SubscriptionStatus,
+  to: SubscriptionStatus
+): void
+```
+
+<ParamField path="from" type="SubscriptionStatus">
+  The previous subscription status.
+</ParamField>
+
+<ParamField path="to" type="SubscriptionStatus">
+  The new subscription status.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  subscriptionStatusDidChange(from, to) {
+    console.log(`Status: ${from.status} -> ${to.status}`)
+    
+    if (to.status === "ACTIVE") {
+      console.log("User is now subscribed!")
+      console.log("Entitlements:", to.entitlements)
+      // Update app UI for premium features
+      updateUI({ isPremium: true })
+    } else if (to.status === "INACTIVE") {
+      console.log("User subscription expired")
+      // Revert UI to free tier
+      updateUI({ isPremium: false })
+    }
+  }
+}
+```
+
+### willPresentPaywall()
+
+Called just before a paywall is presented.
+
+```typescript
+willPresentPaywall(paywallInfo: PaywallInfo): void
+```
+
+<ParamField path="paywallInfo" type="PaywallInfo">
+  Information about the paywall that will be presented.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  willPresentPaywall(paywallInfo) {
+    console.log("About to show paywall:", paywallInfo.name)
+    // Pause music, hide UI elements, etc.
+  }
+}
+```
+
+### didPresentPaywall()
+
+Called after a paywall has been presented.
+
+```typescript
+didPresentPaywall(paywallInfo: PaywallInfo): void
+```
+
+<ParamField path="paywallInfo" type="PaywallInfo">
+  Information about the paywall that was presented.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  didPresentPaywall(paywallInfo) {
+    console.log("Paywall is now visible:", paywallInfo.name)
+    analytics.track("paywall_displayed", {
+      paywallId: paywallInfo.identifier,
+      paywallName: paywallInfo.name
+    })
+  }
+}
+```
+
+### willDismissPaywall()
+
+Called just before a paywall is dismissed.
+
+```typescript
+willDismissPaywall(paywallInfo: PaywallInfo): void
+```
+
+<ParamField path="paywallInfo" type="PaywallInfo">
+  Information about the paywall that will be dismissed.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  willDismissPaywall(paywallInfo) {
+    console.log("Paywall about to close:", paywallInfo.name)
+  }
+}
+```
+
+### didDismissPaywall()
+
+Called after a paywall has been dismissed.
+
+```typescript
+didDismissPaywall(paywallInfo: PaywallInfo): void
+```
+
+<ParamField path="paywallInfo" type="PaywallInfo">
+  Information about the paywall that was dismissed.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  didDismissPaywall(paywallInfo) {
+    console.log("Paywall closed:", paywallInfo.name)
+    // Resume music, show UI elements, etc.
+  }
+}
+```
+
+### handleCustomPaywallAction()
+
+Called when a custom action is triggered from a paywall.
+
+```typescript
+handleCustomPaywallAction(name: string): void
+```
+
+<ParamField path="name" type="string">
+  The name of the custom action triggered.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  handleCustomPaywallAction(name) {
+    console.log("Custom action:", name)
+    
+    switch (name) {
+      case "contact_support":
+        // Open support chat
+        openSupportChat()
+        break
+      case "view_features":
+        // Navigate to features screen
+        navigation.navigate("Features")
+        break
+    }
+  }
+}
+```
+
+### paywallWillOpenURL()
+
+Called when the paywall attempts to open a URL.
+
+```typescript
+paywallWillOpenURL(url: URL): void
+```
+
+<ParamField path="url" type="URL">
+  The URL that the paywall will attempt to open.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  paywallWillOpenURL(url) {
+    console.log("Opening URL:", url.toString())
+    // Track URL clicks
+    analytics.track("paywall_url_clicked", {
+      url: url.toString()
+    })
+  }
+}
+```
+
+### paywallWillOpenDeepLink()
+
+Called when the paywall attempts to open a deep link.
+
+```typescript
+paywallWillOpenDeepLink(url: URL): void
+```
+
+<ParamField path="url" type="URL">
+  The deep link URL that the paywall will attempt to open.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  paywallWillOpenDeepLink(url) {
+    console.log("Opening deep link:", url.toString())
+    // Handle custom deep link routing
+    handleDeepLink(url)
+  }
+}
+```
+
+### willRedeemLink()
+
+Called before the SDK attempts to redeem a promotional link.
+
+```typescript
+willRedeemLink(): void
+```
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  willRedeemLink() {
+    console.log("Starting link redemption...")
+    // Show loading indicator
+    showLoading()
+  }
+}
+```
+
+### didRedeemLink()
+
+Called after the SDK has attempted to redeem a promotional link.
+
+```typescript
+didRedeemLink(result: RedemptionResult): void
+```
+
+<ParamField path="result" type="RedemptionResult">
+  The result of the redemption attempt.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  didRedeemLink(result) {
+    console.log("Link redemption result:", result)
+    hideLoading()
+    
+    if (result.status === "success") {
+      showSuccessMessage("Code redeemed successfully!")
+    } else {
+      showErrorMessage("Failed to redeem code")
+    }
+  }
+}
+```
+
+### handleLog()
+
+Called for logging messages from the SDK.
+
+```typescript
+handleLog(
+  level: string,
+  scope: string,
+  message?: string,
+  info?: Record<string, any> | null,
+  error?: string | null
+): void
+```
+
+<ParamField path="level" type="string">
+  The log level (e.g., "debug", "info", "warn", "error").
+</ParamField>
+
+<ParamField path="scope" type="string">
+  The scope of the log message.
+</ParamField>
+
+<ParamField path="message" type="string">
+  The log message.
+</ParamField>
+
+<ParamField path="info" type="Record<string, any> | null">
+  Additional info associated with the log.
+</ParamField>
+
+<ParamField path="error" type="string | null">
+  Error message if applicable.
+</ParamField>
+
+#### Example
+
+```typescript
+class MyDelegate extends SuperwallDelegate {
+  handleLog(level, scope, message, info, error) {
+    // Forward to your logging service
+    if (level === "error") {
+      errorLogger.log({
+        scope,
+        message,
+        info,
+        error
+      })
+    } else if (level === "debug" && __DEV__) {
+      console.log(`[${scope}] ${message}`, info)
+    }
+  }
+}
+```
+
+## Complete Example
+
+```typescript
+import Superwall, {
+  SuperwallDelegate,
+  EventType,
+  type SuperwallEventInfo,
+  type PaywallInfo,
+  type SubscriptionStatus,
+  type RedemptionResult
+} from "expo-superwall/compat"
+
+class MyAppDelegate extends SuperwallDelegate {
+  // Track all Superwall events
+  handleSuperwallEvent(eventInfo: SuperwallEventInfo) {
+    const { event } = eventInfo
+    
+    switch (event.type) {
+      case EventType.paywallOpen:
+        console.log("📱 Paywall opened:", event.paywallInfo?.name)
+        analytics.track("paywall_viewed", {
+          paywall_id: event.paywallInfo?.identifier,
+          paywall_name: event.paywallInfo?.name
+        })
+        break
+        
+      case EventType.paywallClose:
+        console.log("❌ Paywall closed")
+        break
+        
+      case EventType.transactionStart:
+        console.log("🛒 Purchase started:", event.product?.productIdentifier)
+        break
+        
+      case EventType.transactionComplete:
+        console.log("✅ Purchase completed!")
+        analytics.track("purchase_completed", {
+          product_id: event.product?.productIdentifier,
+          transaction_id: event.transaction?.transactionIdentifier
+        })
+        break
+        
+      case EventType.transactionFail:
+        console.error("❌ Purchase failed:", event.error)
+        break
+        
+      case EventType.subscriptionStart:
+        console.log("🎉 New subscription!")
+        break
+        
+      case EventType.freeTrialStart:
+        console.log("🎁 Free trial started!")
+        break
+    }
+  }
+  
+  // Handle subscription status changes
+  subscriptionStatusDidChange(
+    from: SubscriptionStatus,
+    to: SubscriptionStatus
+  ) {
+    console.log(`Subscription: ${from.status} -> ${to.status}`)
+    
+    if (to.status === "ACTIVE") {
+      // User became a subscriber
+      console.log("User is now premium!")
+      console.log("Entitlements:", to.entitlements)
+      
+      // Update app state
+      appStore.setSubscriptionStatus("active")
+      
+      // Show welcome message
+      showNotification({
+        title: "Welcome to Premium!",
+        message: "You now have access to all features."
+      })
+    } else if (to.status === "INACTIVE" && from.status === "ACTIVE") {
+      // Subscription expired
+      console.log("Subscription expired")
+      appStore.setSubscriptionStatus("inactive")
+    }
+  }
+  
+  // Paywall lifecycle
+  willPresentPaywall(paywallInfo: PaywallInfo) {
+    console.log("Preparing to show paywall:", paywallInfo.name)
+    // Pause audio, hide overlays, etc.
+    audioPlayer.pause()
+  }
+  
+  didPresentPaywall(paywallInfo: PaywallInfo) {
+    console.log("Paywall visible:", paywallInfo.name)
+  }
+  
+  willDismissPaywall(paywallInfo: PaywallInfo) {
+    console.log("Paywall closing:", paywallInfo.name)
+  }
+  
+  didDismissPaywall(paywallInfo: PaywallInfo) {
+    console.log("Paywall closed:", paywallInfo.name)
+    // Resume audio
+    audioPlayer.resume()
+  }
+  
+  // Custom actions
+  handleCustomPaywallAction(name: string) {
+    console.log("Custom action triggered:", name)
+    
+    switch (name) {
+      case "contact_support":
+        navigation.navigate("Support")
+        break
+      case "view_terms":
+        Linking.openURL("https://example.com/terms")
+        break
+      case "restore_purchase":
+        // Trigger restore flow
+        restorePurchases()
+        break
+    }
+  }
+  
+  // URL handling
+  paywallWillOpenURL(url: URL) {
+    console.log("Opening URL:", url.toString())
+    analytics.track("paywall_link_clicked", {
+      url: url.toString()
+    })
+  }
+  
+  paywallWillOpenDeepLink(url: URL) {
+    console.log("Opening deep link:", url.toString())
+    // Custom deep link handling
+    handleDeepLink(url.toString())
+  }
+  
+  // Redemption
+  willRedeemLink() {
+    console.log("Starting redemption...")
+    showLoading("Redeeming code...")
+  }
+  
+  didRedeemLink(result: RedemptionResult) {
+    hideLoading()
+    console.log("Redemption result:", result)
+    
+    if (result.status === "success") {
+      showSuccessNotification("Code redeemed successfully!")
+    } else {
+      showErrorNotification("Failed to redeem code")
+    }
+  }
+  
+  // Logging
+  handleLog(
+    level: string,
+    scope: string,
+    message?: string,
+    info?: Record<string, any> | null,
+    error?: string | null
+  ) {
+    // Forward to your logging service
+    if (level === "error") {
+      Sentry.captureMessage(`[Superwall][${scope}] ${message}`, {
+        level: "error",
+        extra: { info, error }
+      })
+    }
+    
+    if (__DEV__) {
+      const emoji = level === "error" ? "❌" : "ℹ️"
+      console.log(`${emoji} [${scope}] ${message}`, info)
+    }
+  }
+}
+
+// Initialize and set delegate
+const initializeSuperwall = async () => {
+  await Superwall.configure({
+    apiKey: "your_api_key"
+  })
+  
+  const delegate = new MyAppDelegate()
+  await Superwall.shared.setDelegate(delegate)
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Analytics Integration" icon="chart-line">
+    Use `handleSuperwallEvent()` to track important events in your analytics platform for conversion optimization.
+  </Card>
+  
+  <Card title="State Management" icon="database">
+    Use `subscriptionStatusDidChange()` to update your app's subscription state and UI accordingly.
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation">
+    Implement `handleLog()` to capture errors and send them to your error tracking service.
+  </Card>
+  
+  <Card title="Custom Actions" icon="hand-pointer">
+    Use `handleCustomPaywallAction()` to handle custom button actions configured in your paywall.
+  </Card>
+</CardGroup>
+
+## See Also
+
+- [Superwall Class](/api/compat/superwall-class) - Core SDK methods
+- [Event Types](/api/compat/types#eventtype) - Complete list of event types
+- [Getting Started](/compat/getting-started) - Setup guide

@@ -1,0 +1,345 @@
+---
+title: "usePlacement"
+description: "React hook for managing paywall presentation based on placements"
+---
+
+React hook for managing paywall presentation based on placements configured on the Superwall dashboard. This hook provides a way to register placements and handle the state of paywall presentation with callbacks for various lifecycle events.
+
+It must be used within a component that is a descendant of `<SuperwallProvider />`.
+
+## Function Signature
+
+```typescript
+function usePlacement(
+  callbacks?: usePlacementCallbacks
+): {
+  registerPlacement: (args: RegisterPlacementArgs) => Promise<void>;
+  state: PaywallState;
+}
+```
+
+## Parameters
+
+<ParamField path="callbacks" type="usePlacementCallbacks" optional>
+  An optional object containing callback functions for paywall events.
+
+  **usePlacementCallbacks properties:**
+
+  <ParamField path="callbacks.onPresent" type="(paywallInfo: PaywallInfo) => void" optional>
+    Called when a paywall is presented.
+  </ParamField>
+
+  <ParamField path="callbacks.onDismiss" type="(paywallInfo: PaywallInfo, result: PaywallResult) => void" optional>
+    Called when a paywall is dismissed.
+  </ParamField>
+
+  <ParamField path="callbacks.onSkip" type="(reason: PaywallSkippedReason) => void" optional>
+    Called when a paywall is skipped (e.g., user in holdout, no audience match).
+  </ParamField>
+
+  <ParamField path="callbacks.onError" type="(error: string) => void" optional>
+    Called when a paywall fails to present or another SDK error occurs.
+  </ParamField>
+
+  <ParamField path="callbacks.onCustomCallback" type="(callback: CustomCallback) => Promise<CustomCallbackResult> | CustomCallbackResult" optional>
+    Called when a custom callback is invoked from a paywall. Return a result to send back to the paywall.
+    
+    **CustomCallback:**
+    - `name: string` - The callback name
+    - `variables?: Record<string, any>` - Optional variables passed from paywall
+    
+    **CustomCallbackResult:**
+    - `status: "success" | "failure"` - Whether the callback succeeded
+    - `data?: Record<string, any>` - Optional data to return to paywall
+  </ParamField>
+</ParamField>
+
+## Return Value
+
+An object containing:
+
+<ResponseField name="registerPlacement" type="(args: RegisterPlacementArgs) => Promise<void>">
+  A function to register a placement and potentially trigger a paywall.
+  
+  **RegisterPlacementArgs:**
+  
+  <ResponseField name="placement" type="string" required>
+    The placement name defined on the Superwall dashboard.
+  </ResponseField>
+  
+  <ResponseField name="params" type="Record<string, any>" optional>
+    Optional parameters passed to the placement. These can be used for targeting rules or displayed in the paywall.
+  </ResponseField>
+  
+  <ResponseField name="feature" type="() => void" optional>
+    An optional function to execute if the placement does **not** result in a paywall presentation. This is called when:
+    - The user is already subscribed
+    - The user is in a holdout group
+    - No matching campaign rules
+    - Any other reason the paywall is not shown
+    
+    Use this to unlock the gated feature after the paywall flow completes.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="state" type="PaywallState">
+  The current state of the paywall interaction for this hook instance.
+  
+  **Possible states:**
+  
+  <ResponseField name="status: 'idle'" type="object">
+    Initial state, no paywall has been registered yet.
+  </ResponseField>
+  
+  <ResponseField name="status: 'presented'" type="object">
+    A paywall is currently presented.
+    - `paywallInfo: PaywallInfo` - Information about the presented paywall
+  </ResponseField>
+  
+  <ResponseField name="status: 'dismissed'" type="object">
+    The paywall was dismissed.
+    - `result: PaywallResult` - The result of the interaction:
+      - `{ type: "purchased", productId: string }` - User purchased
+      - `{ type: "declined" }` - User closed paywall
+      - `{ type: "restored" }` - User restored purchases
+  </ResponseField>
+  
+  <ResponseField name="status: 'skipped'" type="object">
+    The paywall was skipped.
+    - `reason: PaywallSkippedReason` - Why it was skipped:
+      - `{ type: "Holdout", experiment: Experiment }` - User in holdout group
+      - `{ type: "NoAudienceMatch" }` - User didn't match audience rules
+      - `{ type: "PlacementNotFound" }` - Placement ID not found
+  </ResponseField>
+  
+  <ResponseField name="status: 'error'" type="object">
+    An error occurred.
+    - `error: string` - The error message
+  </ResponseField>
+</ResponseField>
+
+## Usage Examples
+
+### Basic placement registration
+
+```typescript
+import { usePlacement } from 'expo-superwall';
+import { Button } from 'react-native';
+
+function PremiumFeatureScreen() {
+  const { registerPlacement, state } = usePlacement({
+    onPresent: (paywallInfo) => {
+      console.log('Paywall presented:', paywallInfo.name);
+    },
+    onDismiss: (paywallInfo, result) => {
+      console.log('Paywall dismissed:', result.type);
+      if (result.type === 'purchased') {
+        console.log('Product purchased:', result.productId);
+      }
+    },
+    onSkip: (reason) => {
+      console.log('Paywall skipped:', reason.type);
+    },
+    onError: (error) => {
+      console.error('Paywall error:', error);
+    },
+  });
+
+  const showPremiumFeature = async () => {
+    await registerPlacement({
+      placement: 'premium_feature',
+      feature: () => {
+        // User has access - navigate to feature
+        console.log('Feature unlocked!');
+        // navigation.navigate('PremiumContent');
+      },
+    });
+  };
+
+  return (
+    <Button title="Access Premium Feature" onPress={showPremiumFeature} />
+  );
+}
+```
+
+### With placement parameters
+
+```typescript
+import { usePlacement } from 'expo-superwall';
+
+function ArticleScreen({ articleId, isPremium }) {
+  const { registerPlacement } = usePlacement();
+
+  const handleReadArticle = async () => {
+    if (isPremium) {
+      await registerPlacement({
+        placement: 'premium_article',
+        params: {
+          article_id: articleId,
+          article_type: 'premium',
+          source: 'article_screen',
+        },
+        feature: () => {
+          // Show article content
+          showArticleContent();
+        },
+      });
+    }
+  };
+
+  return <Button title="Read Article" onPress={handleReadArticle} />;
+}
+```
+
+### Display state-based UI
+
+```typescript
+import { usePlacement } from 'expo-superwall';
+import { View, Text, Button, ActivityIndicator } from 'react-native';
+
+function FeatureGate() {
+  const { registerPlacement, state } = usePlacement();
+
+  const handleUnlock = async () => {
+    await registerPlacement({
+      placement: 'feature_gate',
+      feature: () => {
+        console.log('Access granted!');
+      },
+    });
+  };
+
+  return (
+    <View>
+      <Button title="Unlock Feature" onPress={handleUnlock} />
+      
+      {state.status === 'presented' && (
+        <Text>Paywall: {state.paywallInfo.name}</Text>
+      )}
+      
+      {state.status === 'dismissed' && (
+        <Text>Result: {state.result.type}</Text>
+      )}
+      
+      {state.status === 'skipped' && (
+        <Text>Skipped: {state.reason.type}</Text>
+      )}
+      
+      {state.status === 'error' && (
+        <Text style={{ color: 'red' }}>Error: {state.error}</Text>
+      )}
+    </View>
+  );
+}
+```
+
+### Custom callback handling
+
+```typescript
+import { usePlacement } from 'expo-superwall';
+
+function PaywallWithValidation() {
+  const { registerPlacement } = usePlacement({
+    onCustomCallback: async (callback) => {
+      // Handle custom paywall actions
+      if (callback.name === 'validate_promo_code') {
+        const code = callback.variables?.code;
+        const isValid = await validatePromoCode(code);
+        
+        return {
+          status: isValid ? 'success' : 'failure',
+          data: {
+            message: isValid ? 'Code applied!' : 'Invalid code',
+            discount: isValid ? 0.2 : 0,
+          },
+        };
+      }
+      
+      return { status: 'failure' };
+    },
+    onPresent: (info) => {
+      console.log('Paywall presented:', info.name);
+    },
+  });
+
+  const showPaywall = async () => {
+    await registerPlacement({
+      placement: 'promo_paywall',
+      feature: () => {
+        console.log('Feature unlocked');
+      },
+    });
+  };
+
+  return <Button title="Show Paywall" onPress={showPaywall} />;
+}
+```
+
+### Multiple placements in one component
+
+```typescript
+import { usePlacement } from 'expo-superwall';
+import { View, Button } from 'react-native';
+
+function MultiFeatureScreen() {
+  const feature1 = usePlacement({
+    onDismiss: (info, result) => {
+      console.log('Feature 1 dismissed:', result.type);
+    },
+  });
+  
+  const feature2 = usePlacement({
+    onDismiss: (info, result) => {
+      console.log('Feature 2 dismissed:', result.type);
+    },
+  });
+
+  return (
+    <View>
+      <Button
+        title="Feature 1"
+        onPress={() => feature1.registerPlacement({
+          placement: 'feature_1',
+          feature: () => console.log('Feature 1 unlocked'),
+        })}
+      />
+      
+      <Button
+        title="Feature 2"
+        onPress={() => feature2.registerPlacement({
+          placement: 'feature_2',
+          feature: () => console.log('Feature 2 unlocked'),
+        })}
+      />
+      
+      <Text>Feature 1 State: {feature1.state.status}</Text>
+      <Text>Feature 2 State: {feature2.state.status}</Text>
+    </View>
+  );
+}
+```
+
+## How It Works
+
+1. When `registerPlacement` is called, the SDK evaluates campaign rules on the Superwall dashboard
+2. Based on the rules, the SDK decides whether to:
+   - Present a paywall
+   - Skip (user in holdout, already subscribed, etc.)
+   - Call the `feature` callback immediately
+3. The hook's `state` is updated throughout the lifecycle
+4. Callbacks are invoked at each stage (present, dismiss, skip, error)
+5. The `feature` callback is executed when the user should have access
+
+## Related Hooks
+
+- [useSuperwall](/api/hooks/use-superwall) - Core SDK access hook
+- [useUser](/api/hooks/use-user) - User management hook
+- [useSuperwallEvents](/api/hooks/use-superwall-events) - Low-level event subscription
+
+## Related Types
+
+- `PaywallInfo` (SuperwallExpoModule.types.ts:392)
+- `PaywallResult` (SuperwallExpoModule.types.ts:177)
+- `PaywallSkippedReason` (SuperwallExpoModule.types.ts:148)
+- `CustomCallback` (SuperwallExpoModule.types.ts:499)
+- `CustomCallbackResult` (SuperwallExpoModule.types.ts:517)

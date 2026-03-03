@@ -1,0 +1,579 @@
+---
+title: Error Handling
+description: Handle SDK initialization failures, paywall errors, and configuration issues
+---
+
+The Superwall SDK provides multiple ways to handle errors gracefully, ensuring your app remains stable even when issues occur.
+
+## Configuration Errors
+
+Configuration errors occur when the SDK fails to initialize, typically due to network issues, invalid API keys, or offline scenarios.
+
+### Using the SuperwallError Component
+
+The `SuperwallError` component displays UI when SDK initialization fails:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError,
+} from "expo-superwall";
+import { ActivityIndicator, View, Text, Button } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoading>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SuperwallLoading>
+
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10 }}>
+              Failed to initialize Superwall
+            </Text>
+            <Text style={{ color: "gray", marginBottom: 20, textAlign: "center" }}>
+              {error}
+            </Text>
+            <Button title="Retry" onPress={() => {/* retry logic */}} />
+          </View>
+        )}
+      </SuperwallError>
+
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+```
+
+<Note>
+  The `SuperwallError` component accepts either static React nodes or a render function that receives the error message string.
+</Note>
+
+### Using the onConfigurationError Callback
+
+Handle configuration errors programmatically for logging or analytics:
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+import * as Sentry from "@sentry/react-native";
+
+export default function App() {
+  const handleConfigError = (error: Error) => {
+    console.error("Superwall config failed:", error.message);
+    
+    // Log to error tracking service
+    Sentry.captureException(error, {
+      tags: {
+        category: "superwall_init",
+      },
+    });
+    
+    // Log to analytics
+    analytics.track("superwall_config_failed", {
+      error: error.message,
+      timestamp: Date.now(),
+    });
+  };
+
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      onConfigurationError={handleConfigError}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+```
+
+### Accessing Error State Directly
+
+Access configuration errors programmatically using `useSuperwall`:
+
+```tsx
+import { useSuperwall } from "expo-superwall";
+import { View, Text, Button } from "react-native";
+
+function ErrorHandler() {
+  const configError = useSuperwall((state) => state.configurationError);
+  const isConfigured = useSuperwall((state) => state.isConfigured);
+
+  if (configError) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+        <Text style={{ fontSize: 18, marginBottom: 10 }}>Configuration Error</Text>
+        <Text style={{ color: "red", marginBottom: 20 }}>{configError}</Text>
+        <Button title="Dismiss" onPress={() => {/* handle */}} />
+      </View>
+    );
+  }
+
+  if (!isConfigured) {
+    return <Text>Loading...</Text>;
+  }
+
+  return null;
+}
+```
+
+## Paywall Errors
+
+Handle errors that occur during paywall presentation or interaction.
+
+### Using onError Callback
+
+The `usePlacement` hook provides an `onError` callback:
+
+```tsx
+import { usePlacement } from "expo-superwall";
+import { Alert } from "react-native";
+
+function FeatureScreen() {
+  const { registerPlacement } = usePlacement({
+    onError: (error) => {
+      console.error("Paywall error:", error);
+      
+      // Show user-friendly error
+      Alert.alert(
+        "Unable to Load",
+        "We couldn't load the subscription page. Please try again.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Retry", onPress: handleRetry },
+        ]
+      );
+      
+      // Log to error tracking
+      logError("paywall_presentation_error", error);
+    },
+
+    onPresent: (info) => {
+      console.log("Paywall presented successfully:", info.name);
+    },
+  });
+
+  const handleRetry = () => {
+    registerPlacement({ placement: "feature" });
+  };
+
+  return (
+    <Button
+      title="Unlock Feature"
+      onPress={() => registerPlacement({ placement: "feature" })}
+    />
+  );
+}
+```
+
+### Checking Paywall State
+
+The `state` object from `usePlacement` includes error information:
+
+```tsx
+function PaywallButton() {
+  const { registerPlacement, state } = usePlacement();
+
+  const handlePress = async () => {
+    await registerPlacement({ placement: "premium" });
+  };
+
+  return (
+    <View>
+      <Button
+        title="Subscribe"
+        onPress={handlePress}
+        disabled={state.status === "presented"}
+      />
+      
+      {state.status === "error" && (
+        <Text style={{ color: "red", marginTop: 10 }}>
+          Error: {state.error}
+        </Text>
+      )}
+    </View>
+  );
+}
+```
+
+## Paywall Skip Reasons
+
+Handle cases where paywalls are intentionally not shown:
+
+```tsx
+import { usePlacement } from "expo-superwall";
+
+const { registerPlacement } = usePlacement({
+  onSkip: (reason) => {
+    switch (reason.type) {
+      case "Holdout":
+        // User is in holdout group for A/B testing
+        console.log("User in holdout group:", reason.experiment.id);
+        analytics.track("paywall_holdout", {
+          experimentId: reason.experiment.id,
+          variantId: reason.experiment.variant.id,
+        });
+        // Allow access since they're in holdout
+        grantAccess();
+        break;
+
+      case "NoAudienceMatch":
+        // User doesn't match targeting rules
+        console.log("User doesn't match audience rules");
+        // Still show the feature since paywall wasn't shown
+        grantAccess();
+        break;
+
+      case "PlacementNotFound":
+        // Placement not configured in dashboard
+        console.error("Placement not found - check dashboard configuration");
+        logError("placement_not_found", { placement: placementId });
+        // Show error to user
+        Alert.alert("Configuration Error", "Please contact support.");
+        break;
+    }
+  },
+});
+```
+
+## Transaction Errors
+
+Handle purchase and restore transaction failures:
+
+```tsx
+import { useSuperwallEvents } from "expo-superwall";
+
+function App() {
+  useSuperwallEvents({
+    onPaywallDismiss: (info, result) => {
+      if (result.type === "declined") {
+        console.log("User declined the paywall");
+        // Don't treat as error - user chose not to purchase
+      }
+    },
+    
+    onPaywallError: (error) => {
+      console.error("Paywall error occurred:", error);
+      
+      // Log to analytics
+      analytics.track("paywall_error", { error });
+      
+      // Show user message
+      Alert.alert(
+        "Error",
+        "Something went wrong. Please try again later."
+      );
+    },
+  });
+
+  return <YourApp />;
+}
+```
+
+### Restore Failed Errors
+
+Customize the restore failure alert in provider options:
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      options={{
+        paywalls: {
+          restoreFailed: {
+            title: "No Subscription Found",
+            message: "We couldn't find an active subscription for your account. If you believe this is an error, please contact support.",
+            closeButtonTitle: "OK",
+          },
+        },
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+```
+
+## Logging for Debugging
+
+Enable detailed logging during development:
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      options={{
+        logging: {
+          level: __DEV__ ? "debug" : "error",
+          scopes: ["all"],
+        },
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+```
+
+### Log Levels
+
+- `"debug"` - Verbose logging for development
+- `"info"` - General information messages
+- `"warn"` - Warning messages
+- `"error"` - Error messages only
+- `"none"` - Disable all logging
+
+### Capturing Logs
+
+Subscribe to SDK logs for custom logging:
+
+```tsx
+import { useSuperwallEvents } from "expo-superwall";
+
+function LoggingProvider({ children }: { children: React.ReactNode }) {
+  useSuperwallEvents({
+    onLog: ({ level, scope, message, info, error }) => {
+      const logData = {
+        level,
+        scope,
+        message,
+        info,
+        error,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Send to your logging service
+      if (level === "error") {
+        Sentry.captureMessage(`Superwall ${scope}: ${message}`, {
+          level: "error",
+          extra: logData,
+        });
+      }
+
+      // Log to console in dev
+      if (__DEV__) {
+        console.log(`[Superwall ${level}] ${scope}:`, message);
+      }
+    },
+  });
+
+  return children;
+}
+```
+
+## Complete Error Handling Example
+
+Here's a comprehensive error handling setup:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError,
+  usePlacement,
+  useSuperwallEvents,
+} from "expo-superwall";
+import { View, Text, Button, Alert, ActivityIndicator } from "react-native";
+import * as Sentry from "@sentry/react-native";
+
+// Error logging utility
+const logError = (context: string, error: any) => {
+  console.error(`[${context}]`, error);
+  Sentry.captureException(new Error(error), {
+    tags: { context },
+  });
+};
+
+// Main App with error handling
+export default function App() {
+  const handleConfigError = (error: Error) => {
+    logError("superwall_config", error.message);
+  };
+
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      onConfigurationError={handleConfigError}
+      options={{
+        logging: {
+          level: __DEV__ ? "debug" : "error",
+          scopes: ["all"],
+        },
+        paywalls: {
+          restoreFailed: {
+            title: "Restore Failed",
+            message: "We couldn't find any purchases to restore. Please contact support if this is incorrect.",
+            closeButtonTitle: "OK",
+          },
+          shouldShowPurchaseFailureAlert: true,
+        },
+      }}
+    >
+      <SuperwallLoading>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" />
+          <Text style={{ marginTop: 20 }}>Loading...</Text>
+        </View>
+      </SuperwallLoading>
+
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+            <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10 }}>
+              Unable to Initialize
+            </Text>
+            <Text style={{ color: "#666", marginBottom: 20, textAlign: "center" }}>
+              {error}
+            </Text>
+            <Text style={{ color: "#999", marginBottom: 30, textAlign: "center" }}>
+              Please check your internet connection and try again.
+            </Text>
+            <Button title="Contact Support" onPress={() => {/* open support */}} />
+          </View>
+        )}
+      </SuperwallError>
+
+      <SuperwallLoaded>
+        <ErrorHandlingApp />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+
+// App with global error listeners
+function ErrorHandlingApp() {
+  useSuperwallEvents({
+    onPaywallError: (error) => {
+      logError("paywall_error", error);
+      Alert.alert("Error", "Unable to load subscription page.");
+    },
+    
+    onLog: ({ level, scope, message, error }) => {
+      if (level === "error") {
+        logError(`superwall_log_${scope}`, error || message);
+      }
+    },
+  });
+
+  return <MainScreen />;
+}
+
+// Feature screen with error handling
+function MainScreen() {
+  const { registerPlacement, state } = usePlacement({
+    onError: (error) => {
+      logError("placement_error", error);
+      Alert.alert(
+        "Unable to Load",
+        "We couldn't load the subscription page. Please try again.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Retry", onPress: handleRetry },
+        ]
+      );
+    },
+
+    onSkip: (reason) => {
+      if (reason.type === "PlacementNotFound") {
+        logError("placement_not_found", reason);
+        Alert.alert("Error", "Feature temporarily unavailable.");
+      }
+    },
+  });
+
+  const handleRetry = () => {
+    registerPlacement({ placement: "premium" });
+  };
+
+  return (
+    <View style={{ flex: 1, padding: 20 }}>
+      <Button
+        title="Unlock Premium"
+        onPress={() => registerPlacement({ placement: "premium" })}
+        disabled={state.status === "presented"}
+      />
+      
+      {state.status === "error" && (
+        <View style={{ marginTop: 20, padding: 10, backgroundColor: "#fee" }}>
+          <Text style={{ color: "#c00" }}>Error: {state.error}</Text>
+          <Button title="Try Again" onPress={handleRetry} />
+        </View>
+      )}
+    </View>
+  );
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always handle configuration errors">
+    Never assume SDK initialization will succeed. Always handle configuration errors with the `SuperwallError` component or `onConfigurationError` callback.
+  </Accordion>
+
+  <Accordion title="Provide user-friendly messages">
+    Don't show raw error messages to users. Provide clear, actionable messages:
+    - ✅ "Unable to load subscription page. Please try again."
+    - ❌ "Error: Network request failed: timeout of 30000ms exceeded"
+  </Accordion>
+
+  <Accordion title="Log errors for debugging">
+    Always log errors to your analytics and error tracking service:
+    ```tsx
+    onError: (error) => {
+      console.error(error);
+      Sentry.captureException(error);
+      analytics.track('paywall_error', { error });
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle offline gracefully">
+    The SDK handles offline scenarios automatically, but you should still provide feedback:
+    ```tsx
+    <SuperwallError>
+      {(error) => (
+        <View>
+          <Text>No internet connection</Text>
+          <Text>Please check your connection and try again.</Text>
+        </View>
+      )}
+    </SuperwallError>
+    ```
+  </Accordion>
+
+  <Accordion title="Use debug logging in development">
+    Enable verbose logging during development:
+    ```tsx
+    options={{
+      logging: {
+        level: __DEV__ ? "debug" : "error",
+        scopes: ["all"],
+      },
+    }}
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Provider Setup" icon="gear" href="/guides/provider-setup">
+    Learn about all provider configuration options
+  </Card>
+  <Card title="Displaying Paywalls" icon="credit-card" href="/guides/displaying-paywalls">
+    Handle paywall presentation and callbacks
+  </Card>
+</CardGroup>

@@ -1,0 +1,167 @@
+---
+title: "SuperwallLoading"
+description: "Component for displaying loading UI while the SDK initializes"
+---
+
+## Overview
+
+`SuperwallLoading` is a component that renders its children only when Superwall is loading or not yet configured. Use this component to display a loading indicator or placeholder while the Superwall SDK is initializing.
+
+Once Superwall is configured and no longer in a loading state, this component renders `null`.
+
+<Note>
+  This component will not render if there's a configuration error. Use [SuperwallError](/api/components/superwall-error) to handle error states.
+</Note>
+
+## Props
+
+<ParamField path="children" type="ReactNode" required>
+  The content to render while Superwall is loading or not yet configured. Typically a loading spinner or placeholder UI.
+</ParamField>
+
+## Basic Usage
+
+```tsx
+import { SuperwallProvider, SuperwallLoading } from "expo-superwall";
+import { ActivityIndicator } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoading>
+        <ActivityIndicator size="large" style={{ flex: 1 }} />
+      </SuperwallLoading>
+      
+      {/* Rest of your app */}
+    </SuperwallProvider>
+  );
+}
+```
+
+## With Custom Loading UI
+
+```tsx
+import { SuperwallProvider, SuperwallLoading } from "expo-superwall";
+import { View, Text, ActivityIndicator } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoading>
+        <View style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#f5f5f5"
+        }}>
+          <ActivityIndicator size="large" color="#0066cc" />
+          <Text style={{ marginTop: 16, fontSize: 16 }}>
+            Loading Superwall...
+          </Text>
+        </View>
+      </SuperwallLoading>
+      
+      {/* Rest of your app */}
+    </SuperwallProvider>
+  );
+}
+```
+
+## Complete Loading State Pattern
+
+Combine with `SuperwallLoaded` and `SuperwallError` for comprehensive state management:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError,
+} from "expo-superwall";
+import { ActivityIndicator, View, Text, Button } from "react-native";
+
+const API_KEY = "YOUR_SUPERWALL_API_KEY";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: API_KEY }}>
+      {/* Show while loading */}
+      <SuperwallLoading>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" />
+          <Text style={{ marginTop: 16 }}>Initializing...</Text>
+        </View>
+      </SuperwallLoading>
+
+      {/* Show if configuration fails */}
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontSize: 18, marginBottom: 10 }}>
+              Failed to initialize Superwall
+            </Text>
+            <Text style={{ color: "gray", marginBottom: 20 }}>{error}</Text>
+            <Button title="Retry" onPress={() => {/* retry logic */}} />
+          </View>
+        )}
+      </SuperwallError>
+
+      {/* Show when ready */}
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+
+function MainAppScreen() {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <Text>Superwall SDK is ready!</Text>
+    </View>
+  );
+}
+```
+
+## Behavior
+
+### When It Renders
+
+The component renders children when:
+- SDK is not yet configured (`isConfigured === false`)
+- SDK is currently loading (`isLoading === true`)
+- There is no configuration error
+
+### When It Hides
+
+The component renders `null` when:
+- SDK has finished loading and is configured
+- A configuration error has occurred (use `SuperwallError` instead)
+
+## Implementation Details
+
+The component uses the `useSuperwall` hook to access SDK state:
+
+```tsx
+const { isLoaded, hasError } = useSuperwall((state) => ({
+  isLoaded: !state.isLoading && state.isConfigured,
+  hasError: state.configurationError !== null,
+}));
+
+if (isLoaded || hasError) {
+  return null;
+}
+
+return children;
+```
+
+<Tip>
+  The loading state typically lasts only a few seconds during SDK initialization. For offline scenarios, the SDK will eventually fail and trigger an error state.
+</Tip>
+
+## See Also
+
+- [SuperwallProvider](/api/components/superwall-provider) - Main SDK provider component
+- [SuperwallLoaded](/api/components/superwall-loaded) - Component for ready state
+- [SuperwallError](/api/components/superwall-error) - Component for error state
+- [useSuperwall](/api/hooks/use-superwall) - Hook for accessing SDK state

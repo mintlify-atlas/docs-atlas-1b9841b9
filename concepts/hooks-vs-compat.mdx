@@ -1,0 +1,329 @@
+---
+title: Hooks API vs Compat SDK
+description: Understanding the two approaches to integrating Superwall in your Expo app
+---
+
+# Hooks API vs Compat SDK
+
+The Expo Superwall SDK offers two distinct integration approaches to meet different project needs:
+
+1. **Hooks API** - Modern React-first approach (recommended for new projects)
+2. **Compat SDK** - Legacy compatibility layer for migrating from React Native Superwall SDK
+
+## Quick Comparison
+
+| Feature | Hooks API | Compat SDK |
+|---------|-----------|------------|
+| **Import** | `import { usePlacement } from "expo-superwall"` | `import Superwall from "expo-superwall/compat"` |
+| **Architecture** | React Context + Hooks + Zustand | Class-based singleton |
+| **State Management** | Reactive hooks with automatic re-renders | Manual state management |
+| **Type Safety** | Full TypeScript inference | Class-based types |
+| **Best For** | New Expo projects | Migrating from React Native SDK |
+| **Learning Curve** | Familiar for React developers | Familiar for Swift/Kotlin SDK users |
+
+## Hooks API (Recommended)
+
+### Overview
+
+The modern Hooks API leverages React's component model with context, hooks, and reactive state management powered by Zustand.
+
+### Key Features
+
+- **React-first design** - Built for React Native best practices
+- **Automatic state updates** - Components re-render when subscription status or user changes
+- **Type-safe** - Full TypeScript support with inference
+- **Composable** - Mix and match hooks as needed
+- **Declarative** - Loading states, errors, and success handled through components
+
+### Example Usage
+
+```tsx
+import { SuperwallProvider, usePlacement, useUser } from "expo-superwall";
+import { Button, View } from "react-native";
+
+function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <FeatureScreen />
+    </SuperwallProvider>
+  );
+}
+
+function FeatureScreen() {
+  const { registerPlacement } = usePlacement({
+    onPresent: (info) => console.log("Paywall shown:", info.name),
+    onDismiss: (info, result) => console.log("Result:", result.type),
+  });
+
+  const { subscriptionStatus, user } = useUser();
+
+  const unlockFeature = async () => {
+    await registerPlacement({
+      placement: "premium_feature",
+      feature: () => {
+        // This runs if user has access
+        console.log("Feature unlocked!");
+      },
+    });
+  };
+
+  return (
+    <View>
+      <Button title="Unlock Feature" onPress={unlockFeature} />
+      <Text>Status: {subscriptionStatus?.status}</Text>
+    </View>
+  );
+}
+```
+
+### Available Hooks
+
+- `useSuperwall()` - Core store access
+- `useUser()` - User management and subscription status
+- `usePlacement()` - Paywall registration and presentation
+- `useSuperwallEvents()` - Low-level event subscription
+
+### Declarative Components
+
+```tsx
+<SuperwallProvider apiKeys={{ ios: API_KEY }}>
+  <SuperwallLoading>
+    <ActivityIndicator />
+  </SuperwallLoading>
+
+  <SuperwallError>
+    {(error) => <ErrorScreen error={error} />}
+  </SuperwallError>
+
+  <SuperwallLoaded>
+    <YourApp />
+  </SuperwallLoaded>
+</SuperwallProvider>
+```
+
+## Compat SDK
+
+### Overview
+
+The Compat SDK provides a class-based interface matching the API surface of the legacy React Native Superwall SDK and native iOS/Android SDKs.
+
+### When to Use
+
+- Migrating from `react-native-superwall` to Expo SDK 53+
+- Team is familiar with the Swift/Kotlin Superwall SDKs
+- Existing codebase using the class-based pattern
+- Need feature parity with native SDKs
+
+### Example Usage
+
+```tsx
+import Superwall from "expo-superwall/compat";
+import { useEffect } from "react";
+import { Platform, Button } from "react-native";
+
+function App() {
+  useEffect(() => {
+    const apiKey = Platform.OS === "ios"
+      ? "YOUR_IOS_KEY"
+      : "YOUR_ANDROID_KEY";
+
+    Superwall.configure({ apiKey });
+  }, []);
+
+  const unlockFeature = async () => {
+    await Superwall.shared.register({
+      placement: "premium_feature",
+      feature() {
+        console.log("Feature unlocked!");
+      },
+    });
+  };
+
+  return <Button title="Unlock Feature" onPress={unlockFeature} />;
+}
+```
+
+### Delegate Pattern
+
+```tsx
+import Superwall, {
+  SuperwallDelegate,
+  EventType,
+} from "expo-superwall/compat";
+
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo) {
+    switch (eventInfo.event.type) {
+      case EventType.paywallOpen:
+        console.log("Paywall opened");
+        break;
+      case EventType.paywallClose:
+        console.log("Paywall closed");
+        break;
+      case EventType.transactionComplete:
+        console.log("Purchase completed!");
+        break;
+    }
+  }
+
+  subscriptionStatusDidChange(from, to) {
+    console.log(`Subscription changed: ${from} -> ${to}`);
+  }
+}
+
+const delegate = new MyDelegate();
+await Superwall.shared.setDelegate(delegate);
+```
+
+## Migration Path
+
+### From Compat to Hooks
+
+If you started with the Compat SDK but want to adopt the modern Hooks API:
+
+#### 1. Replace Configuration
+
+**Before (Compat):**
+```tsx
+Superwall.configure({
+  apiKey: "YOUR_API_KEY",
+  options: new SuperwallOptions({
+    paywalls: { shouldPreload: true }
+  })
+});
+```
+
+**After (Hooks):**
+```tsx
+<SuperwallProvider
+  apiKeys={{ ios: "YOUR_API_KEY" }}
+  options={{ paywalls: { shouldPreload: true } }}
+>
+  {/* app */}
+</SuperwallProvider>
+```
+
+#### 2. Replace User Management
+
+**Before (Compat):**
+```tsx
+await Superwall.shared.identify({ userId: "user_123" });
+await Superwall.shared.setUserAttributes({ tier: "premium" });
+const status = await Superwall.shared.getSubscriptionStatus();
+```
+
+**After (Hooks):**
+```tsx
+const { identify, update, subscriptionStatus } = useUser();
+
+await identify("user_123");
+await update({ tier: "premium" });
+// subscriptionStatus is reactive - auto-updates
+console.log(subscriptionStatus.status);
+```
+
+#### 3. Replace Placement Registration
+
+**Before (Compat):**
+```tsx
+await Superwall.shared.register({
+  placement: "feature_gate",
+  handler: {
+    onPresentHandler: (info) => console.log("Presented", info),
+    onDismissHandler: (info, result) => console.log("Dismissed", result),
+  },
+  feature: () => console.log("Feature unlocked"),
+});
+```
+
+**After (Hooks):**
+```tsx
+const { registerPlacement } = usePlacement({
+  onPresent: (info) => console.log("Presented", info),
+  onDismiss: (info, result) => console.log("Dismissed", result),
+});
+
+await registerPlacement({
+  placement: "feature_gate",
+  feature: () => console.log("Feature unlocked"),
+});
+```
+
+#### 4. Replace Delegate with Events
+
+**Before (Compat):**
+```tsx
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo) {
+    console.log(eventInfo.event.type);
+  }
+}
+Superwall.shared.setDelegate(new MyDelegate());
+```
+
+**After (Hooks):**
+```tsx
+import { useSuperwallEvents } from "expo-superwall";
+
+function EventLogger() {
+  useSuperwallEvents({
+    onSuperwallEvent: (eventInfo) => {
+      console.log(eventInfo.event.event);
+    },
+  });
+  return null;
+}
+```
+
+## Type Definitions
+
+Both APIs share the same underlying type system defined in `SuperwallExpoModule.types.ts`:
+
+```typescript
+import type {
+  PaywallInfo,
+  PaywallResult,
+  SubscriptionStatus,
+  Entitlement,
+} from "expo-superwall";
+
+// These types work with both APIs
+const info: PaywallInfo = { /* ... */ };
+const status: SubscriptionStatus = { status: "ACTIVE", entitlements: [] };
+```
+
+## Performance Considerations
+
+### Hooks API
+- **Reactive updates** - Components automatically re-render on state changes
+- **Shallow equality** - Uses `zustand/shallow` to minimize re-renders
+- **Selective subscriptions** - Only subscribe to state you need
+
+```tsx
+// Only re-renders when subscription status changes
+const { subscriptionStatus } = useSuperwall(state => ({
+  subscriptionStatus: state.subscriptionStatus
+}));
+```
+
+### Compat SDK
+- **Manual updates** - You control when to fetch fresh data
+- **No automatic re-renders** - Use local state or external state management
+- **Direct method calls** - Lower overhead for one-off operations
+
+## Recommendation
+
+<Note>
+  **For new projects**: Use the **Hooks API**. It provides better React integration, automatic state management, and a more modern developer experience.
+</Note>
+
+<Info>
+  **For migrations**: Use the **Compat SDK** initially for faster migration, then gradually adopt hooks as you refactor components.
+</Info>
+
+## Further Reading
+
+- [Paywalls](/concepts/paywalls) - Understanding paywall lifecycle
+- [Placements](/concepts/placements) - Feature gating with placements
+- [User Management](/concepts/user-management) - User identification and attributes
+- [Subscription Status](/concepts/subscription-status) - Managing subscription state

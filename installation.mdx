@@ -1,0 +1,82 @@
+---
+title: Installation
+description: Install and configure the Expo Superwall SDK in your project
+---
+
+# Installation
+
+Get the Expo Superwall SDK up and running in your Expo project.
+
+## Prerequisites
+
+<Warning>
+  **Expo SDK 53+ Required**
+  
+  This SDK only supports Expo SDK version 53 and newer. If you're using an older Expo version, please use our [legacy React Native SDK](https://github.com/superwall/react-native-superwall).
+</Warning>
+
+Before installing, ensure you have:
+- Expo SDK 53 or higher
+- A Superwall account ([sign up here](https://superwall.com))
+- Your Superwall API key from the [Superwall dashboard](https://superwall.com/dashboard)
+
+## Install the Package
+
+Install the `expo-superwall` package using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npx expo install expo-superwall
+```
+
+```bash yarn
+yarn expo install expo-superwall
+```
+
+```bash pnpm
+pnpm expo install expo-superwall
+```
+
+```bash bun
+bunx expo install expo-superwall
+```
+
+</CodeGroup>
+
+<Note>
+  The `expo install` command ensures compatibility with your Expo SDK version and installs the correct dependencies.
+</Note>
+
+## Platform-Specific Setup
+
+### iOS
+
+For iOS, the native dependencies are automatically managed through CocoaPods. After installation, run:
+
+```bash
+npx pod-install
+```
+
+### Android
+
+For Android, the native dependencies are automatically managed through Gradle. No additional setup is required.
+
+## Verify Installation
+
+To verify the SDK is installed correctly, check your `package.json`:
+
+```json package.json
+{
+  "dependencies": {
+    "expo-superwall": "^1.0.4",
+    // ... other dependencies
+  }
+}
+```
+
+## Next Steps
+
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Configure the SDK and show your first paywall
+</Card>

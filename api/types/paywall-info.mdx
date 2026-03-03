@@ -1,0 +1,300 @@
+---
+title: PaywallInfo
+description: Comprehensive information about a paywall instance
+---
+
+`PaywallInfo` contains comprehensive information about a paywall, including its configuration, associated experiment, products, loading times, and other metadata. This object is central to understanding paywall behavior and is provided in many SDK callbacks and events.
+
+## Definition
+
+```typescript
+interface PaywallInfo {
+  identifier: string
+  name: string
+  url: string
+  experiment?: Experiment
+  products: Product[]
+  productIds: string[]
+  presentedByEventWithName?: string
+  presentedByEventWithId?: string
+  presentedByEventAt?: number
+  presentedBy: string
+  presentationSourceType?: string
+  responseLoadStartTime?: number
+  responseLoadCompleteTime?: number
+  responseLoadFailTime?: number
+  responseLoadDuration?: number
+  isFreeTrialAvailable: boolean
+  featureGatingBehavior: FeatureGatingBehavior
+  closeReason: PaywallCloseReason
+  webViewLoadStartTime?: number
+  webViewLoadCompleteTime?: number
+  webViewLoadFailTime?: number
+  webViewLoadDuration?: number
+  productsLoadStartTime?: number
+  productsLoadCompleteTime?: number
+  productsLoadFailTime?: number
+  productsLoadDuration?: number
+  paywalljsVersion?: string
+  computedPropertyRequests: ComputedPropertyRequest[]
+  surveys: Survey[]
+  localNotifications: LocalNotification[]
+  state: Record<string, any>
+}
+```
+
+## Properties
+
+<ResponseField name="identifier" type="string" required>
+  The unique identifier of the paywall, as configured in the Superwall dashboard.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The name of the paywall, as configured in the Superwall dashboard.
+</ResponseField>
+
+<ResponseField name="url" type="string" required>
+  The URL where the paywall's web content is hosted.
+</ResponseField>
+
+<ResponseField name="experiment" type="Experiment">
+  The experiment associated with this paywall presentation, if applicable. Contains information about A/B tests and variants.
+  
+  <Expandable title="Experiment properties">
+    <ResponseField name="id" type="string">
+      The unique identifier for the experiment.
+    </ResponseField>
+    <ResponseField name="groupId" type="string">
+      The identifier of the group to which this experiment belongs.
+    </ResponseField>
+    <ResponseField name="variant" type="Variant">
+      The specific variant assigned to the user.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="products" type="Product[]" required>
+  A list of products available for purchase on this paywall.
+  
+  <Expandable title="Product properties">
+    <ResponseField name="id" type="string">
+      The unique identifier of the product (e.g., from the App Store or Google Play).
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      The name of the product, if available.
+    </ResponseField>
+    <ResponseField name="entitlements" type="Entitlement[]">
+      A list of entitlements granted upon purchasing this product.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="productIds" type="string[]" required>
+  A list of product identifiers (SKUs) available on this paywall.
+</ResponseField>
+
+<ResponseField name="presentedByEventWithName" type="string">
+  The name of the event or placement that triggered the presentation of this paywall.
+  
+  Corresponds to `presentedByPlacementWithName` in the native Swift SDK.
+</ResponseField>
+
+<ResponseField name="presentedByEventWithId" type="string">
+  The identifier of the event or placement that triggered the presentation of this paywall.
+  
+  Corresponds to `presentedByPlacementWithId` in the native Swift SDK.
+</ResponseField>
+
+<ResponseField name="presentedByEventAt" type="number">
+  The Unix timestamp (in seconds or milliseconds) of when the event triggering this paywall occurred.
+  
+  Corresponds to `presentedByPlacementAt` in the native Swift SDK.
+</ResponseField>
+
+<ResponseField name="presentedBy" type="string" required>
+  The source that initiated the paywall presentation.
+  
+  Possible values: `"implicit"`, `"explicit"`, `"getPaywall"`
+</ResponseField>
+
+<ResponseField name="presentationSourceType" type="string">
+  The type of the source that led to the paywall presentation.
+  
+  Examples: `"Register"` for `Superwall.shared.register(event:)`, `"Track"` for `Superwall.shared.track(event:)`
+</ResponseField>
+
+<ResponseField name="responseLoadStartTime" type="number">
+  The Unix timestamp when the request to load the paywall configuration and rules (response) started.
+</ResponseField>
+
+<ResponseField name="responseLoadCompleteTime" type="number">
+  The Unix timestamp when the paywall response successfully loaded.
+</ResponseField>
+
+<ResponseField name="responseLoadFailTime" type="number">
+  The Unix timestamp if the paywall response failed to load.
+</ResponseField>
+
+<ResponseField name="responseLoadDuration" type="number">
+  The duration (typically in milliseconds) it took to load the paywall response.
+</ResponseField>
+
+<ResponseField name="isFreeTrialAvailable" type="boolean" required>
+  Indicates whether a free trial is available for any of the products on this paywall.
+</ResponseField>
+
+<ResponseField name="featureGatingBehavior" type="FeatureGatingBehavior" required>
+  The feature gating behavior for this paywall.
+  
+  - `"gated"` - The feature or content is gated and requires a specific condition to be met for access
+  - `"nonGated"` - The feature or content is available to all users
+</ResponseField>
+
+<ResponseField name="closeReason" type="PaywallCloseReason" required>
+  The reason why the paywall was closed.
+  
+  - `"systemLogic"` - Closed automatically by the SDK due to internal logic
+  - `"forNextPaywall"` - Closed because another paywall is scheduled to be presented
+  - `"webViewFailedToLoad"` - Closed because the web view failed to load
+  - `"manualClose"` - Closed due to direct user action
+  - `"none"` - No specific reason or unknown
+</ResponseField>
+
+<ResponseField name="webViewLoadStartTime" type="number">
+  The Unix timestamp when the web view started loading the paywall's HTML content.
+</ResponseField>
+
+<ResponseField name="webViewLoadCompleteTime" type="number">
+  The Unix timestamp when the web view successfully loaded the paywall's HTML content.
+</ResponseField>
+
+<ResponseField name="webViewLoadFailTime" type="number">
+  The Unix timestamp if the web view failed to load the paywall's HTML content.
+</ResponseField>
+
+<ResponseField name="webViewLoadDuration" type="number">
+  The duration (typically in milliseconds) it took for the web view to load the paywall's content.
+</ResponseField>
+
+<ResponseField name="productsLoadStartTime" type="number">
+  The Unix timestamp when the loading of product information (from App Store/Google Play) started.
+</ResponseField>
+
+<ResponseField name="productsLoadCompleteTime" type="number">
+  The Unix timestamp when the product information successfully loaded.
+</ResponseField>
+
+<ResponseField name="productsLoadFailTime" type="number">
+  The Unix timestamp if loading product information failed.
+</ResponseField>
+
+<ResponseField name="productsLoadDuration" type="number">
+  The duration (typically in milliseconds) it took to load the product information.
+</ResponseField>
+
+<ResponseField name="paywalljsVersion" type="string">
+  The version of the `paywall.js` script used in the paywall, if available.
+</ResponseField>
+
+<ResponseField name="computedPropertyRequests" type="ComputedPropertyRequest[]" required>
+  A list of computed property requests associated with this paywall presentation.
+  
+  Computed properties are dynamic values based on user attributes or other data.
+</ResponseField>
+
+<ResponseField name="surveys" type="Survey[]" required>
+  A list of surveys associated with this paywall that may be presented.
+</ResponseField>
+
+<ResponseField name="localNotifications" type="LocalNotification[]" required>
+  A list of local notifications that may be scheduled as a result of this paywall presentation.
+</ResponseField>
+
+<ResponseField name="state" type="Record<string, any>" required>
+  The state of the paywall, updated on paywall dismiss.
+  
+  Contains key-value pairs representing the paywall's current state.
+</ResponseField>
+
+## Usage
+
+`PaywallInfo` is provided in many SDK callbacks and events:
+
+### With usePlacement Hook
+
+```typescript
+import { usePlacement } from 'expo-superwall'
+
+function MyComponent() {
+  const { register } = usePlacement({
+    placement: 'campaign_trigger',
+    onPresent: (info) => {
+      console.log('Paywall presented:', info.name)
+      console.log('Products available:', info.productIds)
+      console.log('Free trial available:', info.isFreeTrialAvailable)
+      
+      if (info.experiment) {
+        console.log('Experiment ID:', info.experiment.id)
+        console.log('Variant type:', info.experiment.variant.type)
+      }
+    },
+    onDismiss: (info, result) => {
+      console.log('Paywall closed:', info.closeReason)
+      console.log('Result:', result.type)
+    }
+  })
+  
+  return <Button onPress={() => register()} title="Show Paywall" />
+}
+```
+
+### With Event Listeners
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall'
+
+function MyComponent() {
+  useSuperwallEvents({
+    onEvent: (event) => {
+      if (event.event === 'paywallOpen') {
+        const info = event.paywallInfo
+        console.log('Paywall opened:', info.identifier)
+        console.log('Load time:', info.webViewLoadDuration)
+      }
+    }
+  })
+}
+```
+
+### Analyzing Performance
+
+```typescript
+function analyzePaywallPerformance(info: PaywallInfo) {
+  const metrics = {
+    responseLoad: info.responseLoadDuration,
+    webViewLoad: info.webViewLoadDuration,
+    productsLoad: info.productsLoadDuration,
+    totalLoadTime: 
+      (info.responseLoadDuration || 0) + 
+      (info.webViewLoadDuration || 0) + 
+      (info.productsLoadDuration || 0)
+  }
+  
+  console.log('Performance metrics:', metrics)
+  
+  if (metrics.totalLoadTime > 3000) {
+    console.warn('Slow paywall load detected')
+  }
+}
+```
+
+## Related Types
+
+- [SubscriptionStatus](/api/types/subscription-status) - User's subscription state
+- [PaywallResult](/api/types/paywall-result) - Outcome of paywall interaction
+- [SuperwallOptions](/api/types/superwall-options) - SDK configuration options
+
+## Related Hooks
+
+- [usePlacement](/api/hooks/use-placement) - Register and present paywalls
+- [useSuperwallEvents](/api/hooks/use-superwall-events) - Listen to SDK events

@@ -1,0 +1,500 @@
+---
+title: "PurchaseController"
+description: "Implement custom purchase flows and subscription handling"
+---
+
+The `PurchaseController` is an abstract class that allows you to handle all subscription-related logic yourself instead of using Superwall's built-in purchase handling. This is useful if you're already using a purchase library like RevenueCat or have custom purchase logic.
+
+## When to Use PurchaseController
+
+Use a `PurchaseController` when:
+
+- You're already using a third-party purchase library (e.g., RevenueCat, Qonversion)
+- You have existing custom purchase logic you want to maintain
+- You need full control over the purchase flow
+- You want to integrate Superwall into an existing subscription system
+
+<Warning>
+  When using a `PurchaseController`, you must also call `setSubscriptionStatus()` to keep Superwall updated about the user's subscription state.
+</Warning>
+
+## Import
+
+```typescript
+import { PurchaseController } from "expo-superwall/compat"
+```
+
+## Implementation
+
+Extend the `PurchaseController` class and implement the required abstract methods:
+
+```typescript
+import {
+  PurchaseController,
+  PurchaseResult,
+  PurchaseResultPurchased,
+  PurchaseResultCancelled,
+  PurchaseResultFailed,
+  RestorationResult
+} from "expo-superwall/compat"
+
+class MyPurchaseController extends PurchaseController {
+  async purchaseFromAppStore(productId: string): Promise<PurchaseResult> {
+    // Implement iOS purchase logic
+  }
+  
+  async purchaseFromGooglePlay(
+    productId: string,
+    basePlanId?: string,
+    offerId?: string
+  ): Promise<PurchaseResult> {
+    // Implement Android purchase logic
+  }
+  
+  async restorePurchases(): Promise<RestorationResult> {
+    // Implement restore logic
+  }
+}
+```
+
+## Methods
+
+### purchaseFromAppStore()
+
+Called when a user initiates a purchase on iOS.
+
+```typescript
+abstract purchaseFromAppStore(
+  productId: string
+): Promise<PurchaseResult>
+```
+
+<ParamField path="productId" type="string" required>
+  The product identifier of the product the user wants to purchase.
+</ParamField>
+
+<ResponseField name="return" type="Promise<PurchaseResult>">
+  A promise that resolves with the result of the purchase. Return one of:
+  - `PurchaseResultPurchased` - Purchase succeeded
+  - `PurchaseResultCancelled` - User cancelled
+  - `PurchaseResultPending` - Purchase is pending
+  - `PurchaseResultFailed` - Purchase failed with error
+</ResponseField>
+
+#### Example
+
+```typescript
+async purchaseFromAppStore(productId: string): Promise<PurchaseResult> {
+  try {
+    // Use your purchase library
+    const result = await Purchases.purchaseProduct(productId)
+    
+    if (result.productIdentifier) {
+      return new PurchaseResultPurchased()
+    }
+    
+    return new PurchaseResultCancelled()
+  } catch (error) {
+    return new PurchaseResultFailed(error.message)
+  }
+}
+```
+
+### purchaseFromGooglePlay()
+
+Called when a user initiates a purchase on Android.
+
+```typescript
+abstract purchaseFromGooglePlay(
+  productId: string,
+  basePlanId?: string,
+  offerId?: string
+): Promise<PurchaseResult>
+```
+
+<ParamField path="productId" type="string" required>
+  The product identifier of the product the user wants to purchase.
+</ParamField>
+
+<ParamField path="basePlanId" type="string">
+  Optional base plan identifier for subscription products.
+</ParamField>
+
+<ParamField path="offerId" type="string">
+  Optional offer identifier for promotional offers.
+</ParamField>
+
+<ResponseField name="return" type="Promise<PurchaseResult>">
+  A promise that resolves with the result of the purchase.
+</ResponseField>
+
+#### Example
+
+```typescript
+async purchaseFromGooglePlay(
+  productId: string,
+  basePlanId?: string,
+  offerId?: string
+): Promise<PurchaseResult> {
+  try {
+    const purchaseParams = {
+      productId,
+      basePlanId,
+      offerId
+    }
+    
+    const result = await Purchases.purchaseSubscription(purchaseParams)
+    
+    if (result.transactionId) {
+      return new PurchaseResultPurchased()
+    }
+    
+    return new PurchaseResultCancelled()
+  } catch (error) {
+    if (error.code === 'USER_CANCELLED') {
+      return new PurchaseResultCancelled()
+    }
+    return new PurchaseResultFailed(error.message)
+  }
+}
+```
+
+### restorePurchases()
+
+Called when a user initiates a purchase restoration.
+
+```typescript
+abstract restorePurchases(): Promise<RestorationResult>
+```
+
+<ResponseField name="return" type="Promise<RestorationResult>">
+  A promise that resolves with the restoration result:
+  - `RestorationResult.restored()` - Restoration succeeded
+  - `RestorationResult.failed(error)` - Restoration failed
+</ResponseField>
+
+#### Example
+
+```typescript
+async restorePurchases(): Promise<RestorationResult> {
+  try {
+    const result = await Purchases.restorePurchases()
+    
+    if (result.entitlements.active) {
+      return RestorationResult.restored()
+    }
+    
+    return RestorationResult.failed(
+      new Error("No purchases to restore")
+    )
+  } catch (error) {
+    return RestorationResult.failed(error)
+  }
+}
+```
+
+## PurchaseResult Types
+
+### PurchaseResultPurchased
+
+Indicates a successful purchase.
+
+```typescript
+new PurchaseResultPurchased()
+```
+
+### PurchaseResultCancelled
+
+Indicates the user cancelled the purchase.
+
+```typescript
+new PurchaseResultCancelled()
+```
+
+### PurchaseResultPending
+
+Indicates the purchase is pending (e.g., awaiting payment confirmation).
+
+```typescript
+new PurchaseResultPending()
+```
+
+### PurchaseResultFailed
+
+Indicates the purchase failed with an error.
+
+```typescript
+new PurchaseResultFailed(errorMessage: string)
+```
+
+## Complete Example with RevenueCat
+
+```typescript
+import Superwall, {
+  PurchaseController,
+  PurchaseResult,
+  PurchaseResultPurchased,
+  PurchaseResultCancelled,
+  PurchaseResultPending,
+  PurchaseResultFailed,
+  RestorationResult,
+  SubscriptionStatus
+} from "expo-superwall/compat"
+import Purchases, { PurchasesPackage } from "react-native-purchases"
+
+class RevenueCatPurchaseController extends PurchaseController {
+  async purchaseFromAppStore(productId: string): Promise<PurchaseResult> {
+    try {
+      console.log("Purchasing iOS product:", productId)
+      
+      // Get the product from RevenueCat
+      const offerings = await Purchases.getOfferings()
+      let packageToPurchase: PurchasesPackage | undefined
+      
+      // Find the package matching the productId
+      for (const offering of Object.values(offerings.all)) {
+        packageToPurchase = offering.availablePackages.find(
+          pkg => pkg.product.identifier === productId
+        )
+        if (packageToPurchase) break
+      }
+      
+      if (!packageToPurchase) {
+        console.error("Product not found:", productId)
+        return new PurchaseResultFailed("Product not found")
+      }
+      
+      // Make the purchase
+      const { customerInfo, productIdentifier } = await Purchases.purchasePackage(
+        packageToPurchase
+      )
+      
+      // Update Superwall subscription status
+      const hasActiveSubscription = Object.keys(
+        customerInfo.entitlements.active
+      ).length > 0
+      
+      if (hasActiveSubscription) {
+        const entitlements = Object.keys(customerInfo.entitlements.active)
+        await Superwall.shared.setSubscriptionStatus(
+          SubscriptionStatus.Active(entitlements)
+        )
+      }
+      
+      console.log("Purchase successful:", productIdentifier)
+      return new PurchaseResultPurchased()
+      
+    } catch (error: any) {
+      console.error("Purchase failed:", error)
+      
+      // Check if user cancelled
+      if (error.userCancelled) {
+        return new PurchaseResultCancelled()
+      }
+      
+      return new PurchaseResultFailed(error.message || "Purchase failed")
+    }
+  }
+  
+  async purchaseFromGooglePlay(
+    productId: string,
+    basePlanId?: string,
+    offerId?: string
+  ): Promise<PurchaseResult> {
+    try {
+      console.log("Purchasing Android product:", {
+        productId,
+        basePlanId,
+        offerId
+      })
+      
+      // Get offerings from RevenueCat
+      const offerings = await Purchases.getOfferings()
+      let packageToPurchase: PurchasesPackage | undefined
+      
+      // Find the package matching the productId
+      for (const offering of Object.values(offerings.all)) {
+        packageToPurchase = offering.availablePackages.find(
+          pkg => pkg.product.identifier === productId
+        )
+        if (packageToPurchase) break
+      }
+      
+      if (!packageToPurchase) {
+        console.error("Product not found:", productId)
+        return new PurchaseResultFailed("Product not found")
+      }
+      
+      // Make the purchase with optional offer
+      const purchaseParams = offerId
+        ? { package: packageToPurchase, googleProductChangeInfo: { offerToken: offerId } }
+        : { package: packageToPurchase }
+      
+      const { customerInfo } = await Purchases.purchasePackage(packageToPurchase)
+      
+      // Update Superwall subscription status
+      const hasActiveSubscription = Object.keys(
+        customerInfo.entitlements.active
+      ).length > 0
+      
+      if (hasActiveSubscription) {
+        const entitlements = Object.keys(customerInfo.entitlements.active)
+        await Superwall.shared.setSubscriptionStatus(
+          SubscriptionStatus.Active(entitlements)
+        )
+      }
+      
+      console.log("Purchase successful")
+      return new PurchaseResultPurchased()
+      
+    } catch (error: any) {
+      console.error("Purchase failed:", error)
+      
+      if (error.userCancelled) {
+        return new PurchaseResultCancelled()
+      }
+      
+      return new PurchaseResultFailed(error.message || "Purchase failed")
+    }
+  }
+  
+  async restorePurchases(): Promise<RestorationResult> {
+    try {
+      console.log("Restoring purchases...")
+      
+      const customerInfo = await Purchases.restorePurchases()
+      
+      // Update Superwall subscription status
+      const hasActiveSubscription = Object.keys(
+        customerInfo.entitlements.active
+      ).length > 0
+      
+      if (hasActiveSubscription) {
+        const entitlements = Object.keys(customerInfo.entitlements.active)
+        await Superwall.shared.setSubscriptionStatus(
+          SubscriptionStatus.Active(entitlements)
+        )
+        console.log("Purchases restored successfully")
+        return RestorationResult.restored()
+      } else {
+        await Superwall.shared.setSubscriptionStatus(
+          SubscriptionStatus.Inactive()
+        )
+        console.log("No active purchases found")
+        return RestorationResult.failed(
+          new Error("No active purchases to restore")
+        )
+      }
+    } catch (error: any) {
+      console.error("Restore failed:", error)
+      return RestorationResult.failed(error)
+    }
+  }
+}
+
+// Initialize Superwall with custom purchase controller
+const initializeSuperwall = async () => {
+  // Initialize RevenueCat first
+  await Purchases.configure({
+    apiKey: Platform.OS === "ios" 
+      ? "your_revenuecat_ios_key" 
+      : "your_revenuecat_android_key"
+  })
+  
+  // Create purchase controller
+  const purchaseController = new RevenueCatPurchaseController()
+  
+  // Configure Superwall with purchase controller
+  await Superwall.configure({
+    apiKey: Platform.OS === "ios"
+      ? "your_superwall_ios_key"
+      : "your_superwall_android_key",
+    purchaseController,
+    completion: () => {
+      console.log("Superwall configured with custom purchase controller")
+    }
+  })
+  
+  // Listen to RevenueCat subscription changes
+  Purchases.addCustomerInfoUpdateListener(async (customerInfo) => {
+    const hasActiveSubscription = Object.keys(
+      customerInfo.entitlements.active
+    ).length > 0
+    
+    if (hasActiveSubscription) {
+      const entitlements = Object.keys(customerInfo.entitlements.active)
+      await Superwall.shared.setSubscriptionStatus(
+        SubscriptionStatus.Active(entitlements)
+      )
+    } else {
+      await Superwall.shared.setSubscriptionStatus(
+        SubscriptionStatus.Inactive()
+      )
+    }
+  })
+}
+```
+
+## Updating Subscription Status
+
+When using a `PurchaseController`, you must manually update Superwall's subscription status whenever it changes:
+
+```typescript
+import { SubscriptionStatus } from "expo-superwall/compat"
+
+// When user becomes subscribed
+await Superwall.shared.setSubscriptionStatus(
+  SubscriptionStatus.Active(["premium", "pro"])
+)
+
+// When subscription expires
+await Superwall.shared.setSubscriptionStatus(
+  SubscriptionStatus.Inactive()
+)
+
+// When status is unknown
+await Superwall.shared.setSubscriptionStatus(
+  SubscriptionStatus.Unknown()
+)
+```
+
+## Platform-Specific Considerations
+
+### iOS
+
+- Only `purchaseFromAppStore()` will be called on iOS
+- Handle StoreKit transaction states appropriately
+- Consider handling promotional offers and intro pricing
+
+### Android
+
+- Only `purchaseFromGooglePlay()` will be called on Android
+- Use `basePlanId` for subscription base plans
+- Use `offerId` for promotional offers and trials
+- Handle Google Play billing states
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Error Handling" icon="shield-halved">
+    Always wrap purchase logic in try-catch blocks and return appropriate `PurchaseResult` types.
+  </Card>
+  
+  <Card title="Status Updates" icon="rotate">
+    Update subscription status immediately after successful purchases and restorations.
+  </Card>
+  
+  <Card title="User Cancellation" icon="xmark">
+    Distinguish between user cancellations and actual errors in your error handling.
+  </Card>
+  
+  <Card title="Logging" icon="file-lines">
+    Add detailed logging to help debug purchase flow issues.
+  </Card>
+</CardGroup>
+
+## See Also
+
+- [Superwall Class](/api/compat/superwall-class) - Configure SDK with PurchaseController
+- [SubscriptionStatus](/api/compat/types#subscriptionstatus) - Subscription status types
+- [Getting Started](/compat/getting-started) - Complete setup guide

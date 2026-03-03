@@ -1,0 +1,267 @@
+---
+title: "SuperwallLoaded"
+description: "Component for rendering content when the SDK is ready"
+---
+
+## Overview
+
+`SuperwallLoaded` is a component that renders its children only when Superwall has finished loading and is configured. Use this component to conditionally render parts of your UI that depend on Superwall being ready.
+
+If Superwall is still loading, not configured, or has a configuration error, this component renders `null`.
+
+## Props
+
+<ParamField path="children" type="ReactNode" required>
+  The content to render once Superwall is loaded and configured. This is typically your main app screen or components that use Superwall features.
+</ParamField>
+
+## Basic Usage
+
+```tsx
+import { SuperwallProvider, SuperwallLoaded } from "expo-superwall";
+import { View, Text } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+
+function MainAppScreen() {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <Text>Superwall SDK is ready!</Text>
+      {/* Rest of your app's UI */}
+    </View>
+  );
+}
+```
+
+## With Loading States
+
+Combine with `SuperwallLoading` for smooth transitions:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+} from "expo-superwall";
+import { ActivityIndicator, View, Text } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoading>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SuperwallLoading>
+      
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+```
+
+## Complete State Management
+
+Handle all SDK states with loading, loaded, and error components:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError,
+} from "expo-superwall";
+import { ActivityIndicator, View, Text, Button } from "react-native";
+
+const API_KEY = "YOUR_SUPERWALL_API_KEY";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: API_KEY }}>
+      {/* Show while loading */}
+      <SuperwallLoading>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SuperwallLoading>
+
+      {/* Show if configuration fails */}
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontSize: 18, marginBottom: 10 }}>
+              Failed to initialize Superwall
+            </Text>
+            <Text style={{ color: "gray", marginBottom: 20 }}>{error}</Text>
+            <Button title="Retry" onPress={() => {/* retry logic */}} />
+          </View>
+        )}
+      </SuperwallError>
+
+      {/* Show when ready */}
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+
+function MainAppScreen() {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <Text>App is ready!</Text>
+      {/* Your app content */}
+    </View>
+  );
+}
+```
+
+## Using Superwall Hooks
+
+Once loaded, you can safely use Superwall hooks within your components:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoaded,
+  useUser,
+  usePlacement,
+} from "expo-superwall";
+import { View, Button, Text } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoaded>
+        <AppContent />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+
+function AppContent() {
+  const { user, subscriptionStatus } = useUser();
+  const { registerPlacement } = usePlacement();
+
+  const handleShowPaywall = async () => {
+    await registerPlacement({
+      placement: "onboarding_paywall",
+      feature() {
+        console.log("User has access!");
+      },
+    });
+  };
+
+  return (
+    <View style={{ padding: 20 }}>
+      <Text>User ID: {user?.appUserId}</Text>
+      <Text>Status: {subscriptionStatus?.status}</Text>
+      <Button title="Show Paywall" onPress={handleShowPaywall} />
+    </View>
+  );
+}
+```
+
+## Behavior
+
+### When It Renders
+
+The component renders children when:
+- SDK is configured (`isConfigured === true`)
+- SDK is not loading (`isLoading === false`)
+- There is no configuration error (`configurationError === null`)
+
+### When It Hides
+
+The component renders `null` when:
+- SDK is still loading
+- SDK is not yet configured
+- A configuration error has occurred
+
+## Implementation Details
+
+The component uses the `useSuperwall` hook to access SDK state:
+
+```tsx
+const { isLoaded, hasError } = useSuperwall((state) => ({
+  isLoaded: !state.isLoading && state.isConfigured,
+  hasError: state.configurationError !== null,
+}));
+
+if (!isLoaded || hasError) {
+  return null;
+}
+
+return children;
+```
+
+<Tip>
+  Components wrapped in `SuperwallLoaded` can safely use Superwall hooks without worrying about SDK initialization state.
+</Tip>
+
+## Best Practices
+
+### Always Pair with Loading State
+
+```tsx
+<SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+  <SuperwallLoading>
+    <LoadingSpinner />
+  </SuperwallLoading>
+  
+  <SuperwallLoaded>
+    <YourApp />
+  </SuperwallLoaded>
+</SuperwallProvider>
+```
+
+### Handle Errors Gracefully
+
+```tsx
+<SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+  <SuperwallLoading>
+    <LoadingSpinner />
+  </SuperwallLoading>
+  
+  <SuperwallError>
+    <ErrorScreen />
+  </SuperwallError>
+  
+  <SuperwallLoaded>
+    <YourApp />
+  </SuperwallLoaded>
+</SuperwallProvider>
+```
+
+### Avoid Nesting Multiple Loaded Components
+
+```tsx
+// ❌ Don't do this
+<SuperwallLoaded>
+  <SuperwallLoaded>
+    <YourApp />
+  </SuperwallLoaded>
+</SuperwallLoaded>
+
+// ✅ Do this instead
+<SuperwallLoaded>
+  <YourApp />
+</SuperwallLoaded>
+```
+
+<Note>
+  The component only needs to wrap the parts of your app that require Superwall functionality. You can have app content outside `SuperwallLoaded` if it doesn't depend on the SDK.
+</Note>
+
+## See Also
+
+- [SuperwallProvider](/api/components/superwall-provider) - Main SDK provider component
+- [SuperwallLoading](/api/components/superwall-loading) - Component for loading state
+- [SuperwallError](/api/components/superwall-error) - Component for error state
+- [useSuperwall](/api/hooks/use-superwall) - Hook for accessing SDK state

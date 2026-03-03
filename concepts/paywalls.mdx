@@ -1,0 +1,452 @@
+---
+title: Paywalls
+description: Understanding paywalls in Superwall and their lifecycle
+---
+
+# Paywalls
+
+Paywalls are the core of Superwall's monetization platform. They are web-based subscription interfaces that you design in the Superwall dashboard and present to users at key moments in your app.
+
+## What is a Paywall?
+
+A paywall is a full-screen or modal view that:
+
+- Displays your subscription products and pricing
+- Explains the value of your premium features
+- Handles purchase flows (subscriptions, one-time purchases, trials)
+- Can be A/B tested and remotely configured
+- Supports rich media, animations, and custom branding
+
+### Key Characteristics
+
+- **Web-based** - Built with HTML/CSS/JavaScript, loaded at runtime
+- **Remotely configured** - Update copy, pricing, design without app updates
+- **Experiment-ready** - A/B test variants with audience targeting
+- **Cross-platform** - Same paywall works on iOS and Android
+
+## Paywall Architecture
+
+```
+┌─────────────────────────────────────┐
+│      Superwall Dashboard            │
+│  ┌─────────────────────────────┐   │
+│  │  Paywall Designer           │   │
+│  │  - Products                 │   │
+│  │  - Design/Layout            │   │
+│  │  - Copy & Assets            │   │
+│  └─────────────────────────────┘   │
+└─────────────────────────────────────┘
+              │
+              ↓ Configuration API
+┌─────────────────────────────────────┐
+│         Expo Superwall SDK          │
+│  ┌─────────────────────────────┐   │
+│  │  registerPlacement()        │   │
+│  │    ↓                        │   │
+│  │  Campaign Rules Engine      │   │
+│  │    ↓                        │   │
+│  │  Paywall Presentation       │   │
+│  └─────────────────────────────┘   │
+└─────────────────────────────────────┘
+              │
+              ↓ Native Presentation
+┌─────────────────────────────────────┐
+│        Native WebView               │
+│  ┌─────────────────────────────┐   │
+│  │  Rendered Paywall UI        │   │
+│  │  - Product Display          │   │
+│  │  - Purchase Buttons         │   │
+│  │  - Close/Dismiss            │   │
+│  └─────────────────────────────┘   │
+└─────────────────────────────────────┘
+```
+
+## Paywall Lifecycle
+
+### 1. Configuration Load
+
+When your app starts, Superwall fetches paywall configurations:
+
+```tsx
+<SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+  {/* SDK loads paywall config in background */}
+</SuperwallProvider>
+```
+
+Configuration includes:
+- Available paywalls and their variants
+- Campaign rules and audience filters
+- Product identifiers (App Store/Google Play SKUs)
+- Experiment assignments
+
+### 2. Placement Registration
+
+You register a placement when the user attempts to access a feature:
+
+```tsx
+const { registerPlacement } = usePlacement();
+
+await registerPlacement({
+  placement: "fishing_feature",
+  feature: () => {
+    // User has access - show feature
+    navigateToFishingMinigame();
+  },
+});
+```
+
+### 3. Rule Evaluation
+
+Superwall evaluates whether to show a paywall based on:
+
+- **Audience filters** - User attributes, device properties, location
+- **Subscription status** - Is user already subscribed?
+- **Experiment assignment** - Which variant should this user see?
+- **Placement configuration** - Is this placement gated?
+
+Possible outcomes:
+
+| Outcome | Description | Result |
+|---------|-------------|--------|
+| **Paywall Presented** | User matches audience, not subscribed | Paywall shows |
+| **Feature Granted** | User is subscribed or in non-gated flow | `feature()` executes |
+| **Holdout** | User in experiment control group | `feature()` executes, no paywall |
+| **No Match** | Doesn't match audience filters | `feature()` executes |
+
+### 4. Presentation
+
+If a paywall should show, Superwall presents it:
+
+```tsx
+const { registerPlacement } = usePlacement({
+  onPresent: (paywallInfo) => {
+    console.log("Showing paywall:", paywallInfo.name);
+    // Track analytics
+    analytics.track("Paywall Viewed", {
+      paywallId: paywallInfo.identifier,
+      placement: "fishing_feature",
+    });
+  },
+});
+```
+
+The `PaywallInfo` object contains comprehensive details:
+
+```typescript
+interface PaywallInfo {
+  identifier: string;           // Paywall ID
+  name: string;                 // Paywall name from dashboard
+  url: string;                  // Web content URL
+  experiment?: Experiment;      // A/B test details
+  products: Product[];          // Available products
+  productIds: string[];         // Product SKUs
+  isFreeTrialAvailable: boolean;
+  featureGatingBehavior: "gated" | "nonGated";
+  // ... timing metrics, surveys, notifications
+}
+```
+
+### 5. User Interaction
+
+The user interacts with the paywall:
+
+- **Purchase** - Subscribes or buys a product
+- **Restore** - Restores previous purchases
+- **Close** - Dismisses without purchasing
+
+### 6. Dismissal
+
+Paywall is dismissed with a result:
+
+```tsx
+const { registerPlacement } = usePlacement({
+  onDismiss: (paywallInfo, result) => {
+    switch (result.type) {
+      case "purchased":
+        console.log("User bought:", result.productId);
+        // Unlock content
+        break;
+      case "restored":
+        console.log("Purchases restored");
+        break;
+      case "declined":
+        console.log("User closed paywall");
+        break;
+    }
+  },
+});
+```
+
+#### PaywallResult Types
+
+```typescript
+type PaywallResult =
+  | { type: "purchased"; productId: string }
+  | { type: "restored" }
+  | { type: "declined" };
+```
+
+### 7. Feature Execution
+
+For **non-gated** paywalls, the feature block executes when paywall is dismissed.
+
+For **gated** paywalls, the feature block only executes if the user purchased or is already subscribed.
+
+```tsx
+await registerPlacement({
+  placement: "premium_tool",
+  feature: () => {
+    // For gated: only runs if user has subscription
+    // For non-gated: runs when paywall closes
+    showPremiumTool();
+  },
+});
+```
+
+## Paywall States
+
+The `usePlacement` hook provides reactive state:
+
+```tsx
+const { state } = usePlacement();
+
+switch (state.status) {
+  case "idle":
+    // No paywall activity
+    break;
+  case "presented":
+    // Paywall is showing
+    console.log(state.paywallInfo.name);
+    break;
+  case "dismissed":
+    // Paywall was closed
+    console.log(state.result.type);
+    break;
+  case "skipped":
+    // Paywall skipped (holdout, no match, etc.)
+    console.log(state.reason.type);
+    break;
+  case "error":
+    // Error occurred
+    console.error(state.error);
+    break;
+}
+```
+
+## Feature Gating
+
+### Gated Paywalls
+
+User must subscribe to access the feature:
+
+```tsx
+// Configured as "gated" in dashboard
+await registerPlacement({
+  placement: "pro_feature",
+  feature: () => {
+    // ONLY runs if user is subscribed
+    unlockProFeature();
+  },
+});
+```
+
+**Flow:**
+1. Check subscription status
+2. If subscribed → execute `feature()`
+3. If not subscribed → show paywall
+4. User purchases → execute `feature()`
+5. User declines → do nothing
+
+### Non-Gated Paywalls
+
+Feature is accessible, but paywall is shown first:
+
+```tsx
+// Configured as "non-gated" in dashboard
+await registerPlacement({
+  placement: "article_read",
+  feature: () => {
+    // ALWAYS runs when paywall is dismissed
+    showArticle();
+  },
+});
+```
+
+**Flow:**
+1. Show paywall (if rules match)
+2. User interacts (purchase, decline, close)
+3. Dismiss paywall
+4. Execute `feature()` regardless of outcome
+
+<Tip>
+  Use non-gated paywalls for content you want users to access anyway, like soft paywalls in news apps.
+</Tip>
+
+## Preloading Paywalls
+
+To improve perceived performance, preload paywalls before they're needed:
+
+```tsx
+// Preload all paywalls
+const { preloadAllPaywalls } = useSuperwall();
+useEffect(() => {
+  preloadAllPaywalls();
+}, []);
+
+// Preload specific placements
+const { preloadPaywalls } = useSuperwall();
+useEffect(() => {
+  preloadPaywalls(["feature_gate", "onboarding"]);
+}, []);
+```
+
+Preloading:
+- Fetches paywall HTML/CSS/JS
+- Loads product information from stores
+- Caches assets for instant presentation
+
+<Note>
+  Preloading is automatic by default. Set `options.paywalls.shouldPreload = false` to disable.
+</Note>
+
+## Paywall Timing Metrics
+
+The `PaywallInfo` object includes detailed timing data:
+
+```typescript
+interface PaywallInfo {
+  // Response loading (campaign rules, paywall config)
+  responseLoadStartTime?: number;
+  responseLoadCompleteTime?: number;
+  responseLoadDuration?: number;
+
+  // WebView loading (HTML/CSS/JS)
+  webViewLoadStartTime?: number;
+  webViewLoadCompleteTime?: number;
+  webViewLoadDuration?: number;
+
+  // Product loading (App Store/Google Play)
+  productsLoadStartTime?: number;
+  productsLoadCompleteTime?: number;
+  productsLoadDuration?: number;
+}
+```
+
+Use these metrics to track performance:
+
+```tsx
+usePlacement({
+  onPresent: (info) => {
+    analytics.track("Paywall Performance", {
+      responseLoadMs: info.responseLoadDuration,
+      webViewLoadMs: info.webViewLoadDuration,
+      productsLoadMs: info.productsLoadDuration,
+    });
+  },
+});
+```
+
+## Manual Dismissal
+
+Dismiss a paywall programmatically:
+
+```tsx
+const { dismiss } = useSuperwall();
+
+// Close any active paywall
+await dismiss();
+```
+
+## Advanced: Custom Callbacks
+
+Paywalls can invoke custom callbacks to your app:
+
+```tsx
+usePlacement({
+  onCustomCallback: async (callback) => {
+    if (callback.name === "validatePromoCode") {
+      const code = callback.variables?.code;
+      const valid = await checkPromoCode(code);
+      return {
+        status: valid ? "success" : "failure",
+        data: { discount: valid ? 0.2 : 0 },
+      };
+    }
+    return { status: "failure" };
+  },
+});
+```
+
+## Common Patterns
+
+### Show Paywall on Feature Tap
+
+```tsx
+function PremiumFeatureButton() {
+  const { registerPlacement } = usePlacement();
+
+  return (
+    <Button
+      title="Unlock Premium"
+      onPress={() => {
+        registerPlacement({
+          placement: "premium_unlock",
+          feature: () => navigateToPremiumScreen(),
+        });
+      }}
+    />
+  );
+}
+```
+
+### Show Paywall After X Actions
+
+```tsx
+function ArticleList() {
+  const [articlesRead, setArticlesRead] = useState(0);
+  const { registerPlacement } = usePlacement();
+
+  const readArticle = async (articleId: string) => {
+    const newCount = articlesRead + 1;
+    setArticlesRead(newCount);
+
+    if (newCount >= 3) {
+      await registerPlacement({
+        placement: "article_limit",
+        params: { articlesRead: newCount },
+        feature: () => openArticle(articleId),
+      });
+    } else {
+      openArticle(articleId);
+    }
+  };
+
+  return <ArticleList onArticlePress={readArticle} />;
+}
+```
+
+### Conditional Paywall
+
+```tsx
+const { subscriptionStatus } = useUser();
+const { registerPlacement } = usePlacement();
+
+const accessFeature = async () => {
+  if (subscriptionStatus?.status === "ACTIVE") {
+    // Already subscribed - skip paywall
+    showFeature();
+  } else {
+    // Not subscribed - show paywall
+    await registerPlacement({
+      placement: "feature_gate",
+      feature: () => showFeature(),
+    });
+  }
+};
+```
+
+## Further Reading
+
+- [Placements](/concepts/placements) - Configuring placement triggers
+- [Subscription Status](/concepts/subscription-status) - Managing subscription state
+- [User Management](/concepts/user-management) - Targeting users with attributes

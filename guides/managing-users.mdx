@@ -1,0 +1,520 @@
+---
+title: Managing Users
+description: Identify users, manage attributes, and track subscription status with the useUser hook
+---
+
+The `useUser` hook provides functions to manage user identity, attributes, and subscription status in the Superwall SDK.
+
+## Basic Usage
+
+```tsx
+import { useUser } from "expo-superwall";
+
+function ProfileScreen() {
+  const { identify, user, subscriptionStatus } = useUser();
+
+  return (
+    <View>
+      <Text>User ID: {user?.appUserId}</Text>
+      <Text>Status: {subscriptionStatus?.status}</Text>
+    </View>
+  );
+}
+```
+
+## User Identification
+
+Identify users when they log in to track their behavior and purchases:
+
+<Steps>
+  <Step title="Call identify() on login">
+    ```tsx
+    const { identify } = useUser();
+
+    const handleLogin = async (userId: string) => {
+      try {
+        await identify(userId);
+        console.log("User identified:", userId);
+      } catch (error) {
+        console.error("Failed to identify user:", error);
+      }
+    };
+    ```
+  </Step>
+
+  <Step title="Use consistent user IDs">
+    Use the same ID as your authentication system:
+    ```tsx
+    // ✅ Good - consistent with your auth system
+    await identify(firebaseUser.uid);
+    await identify(supabaseUser.id);
+    await identify(clerkUser.id);
+
+    // ❌ Bad - random or changing IDs
+    await identify(`user_${Date.now()}`);
+    ```
+  </Step>
+
+  <Step title="Sign out when user logs out">
+    ```tsx
+    const { signOut } = useUser();
+
+    const handleLogout = async () => {
+      await signOut();
+      // User identity is now reset
+    };
+    ```
+  </Step>
+</Steps>
+
+### Identification Options
+
+Restore paywall assignments from previous sessions:
+
+```tsx
+await identify(userId, {
+  restorePaywallAssignments: true,
+});
+```
+
+<Note>
+  When `restorePaywallAssignments` is `true`, the SDK attempts to restore the user's previous paywall variant assignments. This ensures consistent A/B test experiences across sessions.
+</Note>
+
+## User Attributes
+
+User attributes help you:
+- Target specific user segments with paywalls
+- Personalize paywall content
+- Track user behavior
+- Make data-driven decisions
+
+### Built-in Attributes
+
+The SDK automatically tracks these attributes:
+
+```tsx
+const { user } = useUser();
+
+console.log(user?.appUserId);               // Your app's user ID
+console.log(user?.aliasId);                 // Superwall's internal alias
+console.log(user?.applicationInstalledAt);  // ISO date of app install
+console.log(user?.seed);                    // Seed for variant assignment
+```
+
+### Custom Attributes
+
+Set custom attributes to enrich user data:
+
+```tsx
+const { update } = useUser();
+
+// Set attributes directly
+await update({
+  name: "John Doe",
+  email: "john@example.com",
+  plan: "free",
+  onboardingCompleted: true,
+  signupDate: new Date().toISOString(),
+});
+```
+
+### Updating Attributes with Functions
+
+Use a function to update based on previous values:
+
+```tsx
+const { update } = useUser();
+
+// Increment a counter
+await update((oldAttributes) => ({
+  ...oldAttributes,
+  exportCount: (oldAttributes.exportCount || 0) + 1,
+}));
+
+// Update nested properties
+await update((oldAttributes) => ({
+  ...oldAttributes,
+  preferences: {
+    ...oldAttributes.preferences,
+    theme: "dark",
+  },
+}));
+```
+
+### Practical Examples
+
+<CodeGroup>
+```tsx User Onboarding
+const { update } = useUser();
+
+// Track onboarding progress
+await update({
+  onboardingStep: 3,
+  onboardingCompleted: false,
+});
+
+// After onboarding
+await update({
+  onboardingCompleted: true,
+  onboardingCompletedAt: new Date().toISOString(),
+});
+```
+
+```tsx Feature Usage
+const { update } = useUser();
+
+// Track feature usage
+await update((prev) => ({
+  ...prev,
+  documentsCreated: (prev.documentsCreated || 0) + 1,
+  lastDocumentCreatedAt: new Date().toISOString(),
+}));
+```
+
+```tsx User Preferences
+const { update } = useUser();
+
+// Store user preferences
+await update({
+  language: "en",
+  notifications: true,
+  theme: "dark",
+  fontSize: "medium",
+});
+```
+</CodeGroup>
+
+## Subscription Status
+
+Track and manage the user's subscription state:
+
+```tsx
+const { subscriptionStatus } = useUser();
+
+console.log(subscriptionStatus?.status);
+// "UNKNOWN" | "INACTIVE" | "ACTIVE"
+
+if (subscriptionStatus?.status === "ACTIVE") {
+  console.log("Entitlements:", subscriptionStatus.entitlements);
+  // [{ id: "premium", type: "SERVICE_LEVEL" }]
+}
+```
+
+### Subscription Status Types
+
+```tsx
+// Unknown status (initial state)
+{ status: "UNKNOWN" }
+
+// User not subscribed
+{ status: "INACTIVE" }
+
+// User has active subscription
+{
+  status: "ACTIVE",
+  entitlements: [
+    { id: "premium", type: "SERVICE_LEVEL" },
+    { id: "pro_features", type: "SERVICE_LEVEL" },
+  ]
+}
+```
+
+### Setting Subscription Status
+
+Manually set status after purchase or restore:
+
+```tsx
+const { setSubscriptionStatus } = useUser();
+
+// After successful purchase
+await setSubscriptionStatus({
+  status: "ACTIVE",
+  entitlements: [
+    { id: "premium", type: "SERVICE_LEVEL" },
+  ],
+});
+
+// After subscription expires
+await setSubscriptionStatus({
+  status: "INACTIVE",
+});
+```
+
+<Warning>
+  Only use `setSubscriptionStatus` if you're managing subscriptions manually. The SDK automatically tracks subscription status when using native purchase flows.
+</Warning>
+
+## Entitlements
+
+Retrieve detailed entitlement information:
+
+```tsx
+const { getEntitlements } = useUser();
+
+const entitlements = await getEntitlements();
+console.log(entitlements);
+// {
+//   active: [{ id: "premium", type: "SERVICE_LEVEL" }],
+//   inactive: [{ id: "trial", type: "SERVICE_LEVEL" }]
+// }
+```
+
+### Syncing Subscription Status
+
+Sync subscription status from entitlements:
+
+```tsx
+const { getEntitlements, setSubscriptionStatus } = useUser();
+
+const syncSubscription = async () => {
+  const entitlements = await getEntitlements();
+  
+  if (entitlements.active.length > 0) {
+    await setSubscriptionStatus({
+      status: "ACTIVE",
+      entitlements: entitlements.active,
+    });
+  } else {
+    await setSubscriptionStatus({
+      status: "INACTIVE",
+    });
+  }
+};
+```
+
+## Refreshing User Data
+
+Manually refresh user attributes and subscription status:
+
+```tsx
+const { refresh } = useUser();
+
+const handleRefresh = async () => {
+  try {
+    const updatedAttributes = await refresh();
+    console.log("User data refreshed:", updatedAttributes);
+  } catch (error) {
+    console.error("Failed to refresh:", error);
+  }
+};
+```
+
+## Complete Example
+
+Here's a comprehensive user management implementation:
+
+```tsx
+import { useUser } from "expo-superwall";
+import { View, Text, Button, TextInput } from "react-native";
+import { useState, useEffect } from "react";
+
+function UserProfileScreen() {
+  const {
+    identify,
+    update,
+    signOut,
+    refresh,
+    user,
+    subscriptionStatus,
+    setSubscriptionStatus,
+    getEntitlements,
+  } = useUser();
+
+  const [name, setName] = useState("");
+
+  // Load user data on mount
+  useEffect(() => {
+    if (user?.name) {
+      setName(user.name);
+    }
+  }, [user]);
+
+  const handleLogin = async (userId: string) => {
+    try {
+      await identify(userId, {
+        restorePaywallAssignments: true,
+      });
+      
+      // Set initial user attributes
+      await update({
+        loginAt: new Date().toISOString(),
+        platform: Platform.OS,
+      });
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    await update({
+      name,
+      profileUpdatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    setName("");
+  };
+
+  const handleRefresh = async () => {
+    const updatedData = await refresh();
+    console.log("Refreshed:", updatedData);
+  };
+
+  const syncSubscriptionStatus = async () => {
+    const entitlements = await getEntitlements();
+    
+    if (entitlements.active.length > 0) {
+      await setSubscriptionStatus({
+        status: "ACTIVE",
+        entitlements: entitlements.active,
+      });
+    }
+  };
+
+  return (
+    <View style={{ padding: 20 }}>
+      <Text style={{ fontSize: 24, marginBottom: 20 }}>User Profile</Text>
+
+      {user ? (
+        <View>
+          <Text>User ID: {user.appUserId}</Text>
+          <Text>Alias: {user.aliasId}</Text>
+          <Text>Installed: {new Date(user.applicationInstalledAt).toLocaleDateString()}</Text>
+          
+          <View style={{ marginTop: 20 }}>
+            <Text>Subscription: {subscriptionStatus?.status}</Text>
+            {subscriptionStatus?.status === "ACTIVE" && (
+              <Text>
+                Entitlements: {subscriptionStatus.entitlements.map(e => e.id).join(", ")}
+              </Text>
+            )}
+          </View>
+
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Name"
+            style={{ borderWidth: 1, padding: 10, marginTop: 20 }}
+          />
+          <Button title="Update Profile" onPress={handleUpdateProfile} />
+
+          <View style={{ marginTop: 20 }}>
+            <Button title="Refresh Data" onPress={handleRefresh} />
+            <Button title="Sync Subscription" onPress={syncSubscriptionStatus} />
+            <Button title="Logout" onPress={handleLogout} color="red" />
+          </View>
+        </View>
+      ) : (
+        <View>
+          <Text>Not logged in</Text>
+          <Button
+            title="Login"
+            onPress={() => handleLogin("user_123")}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+export default UserProfileScreen;
+```
+
+## User Attribute Patterns
+
+<Tabs>
+  <Tab title="Onboarding">
+    Track onboarding progress:
+    ```tsx
+    await update({
+      onboardingStep: currentStep,
+      onboardingCompleted: false,
+      onboardingStartedAt: new Date().toISOString(),
+    });
+    ```
+  </Tab>
+  <Tab title="Feature Usage">
+    Track feature adoption:
+    ```tsx
+    await update((prev) => ({
+      ...prev,
+      featuresUsed: [...(prev.featuresUsed || []), "pdf_export"],
+      lastActiveAt: new Date().toISOString(),
+    }));
+    ```
+  </Tab>
+  <Tab title="User Segmentation">
+    Segment users for targeting:
+    ```tsx
+    await update({
+      userType: "power_user",
+      segment: "high_value",
+      documentsCreated: 50,
+      daysActive: 30,
+    });
+    ```
+  </Tab>
+  <Tab title="A/B Testing">
+    Store experiment assignments:
+    ```tsx
+    await update({
+      experimentVariant: "variant_b",
+      experimentAssignedAt: new Date().toISOString(),
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Identify users early">
+    Call `identify()` as soon as you have a user ID:
+    ```tsx
+    useEffect(() => {
+      if (authUser?.uid) {
+        identify(authUser.uid);
+      }
+    }, [authUser]);
+    ```
+  </Accordion>
+
+  <Accordion title="Use meaningful attribute names">
+    Choose clear, consistent names:
+    - ✅ `onboardingCompleted`, `lastActiveAt`, `documentsCreated`
+    - ❌ `flag1`, `temp`, `x`
+  </Accordion>
+
+  <Accordion title="Keep attributes up to date">
+    Update attributes when relevant events occur:
+    ```tsx
+    // On document creation
+    await update((prev) => ({
+      ...prev,
+      documentsCreated: (prev.documentsCreated || 0) + 1,
+    }));
+    ```
+  </Accordion>
+
+  <Accordion title="Don't store sensitive data">
+    Avoid storing:
+    - Passwords
+    - Credit card numbers
+    - Social security numbers
+    - Private personal information
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Handling Subscriptions" icon="credit-card" href="/guides/handling-subscriptions">
+    Learn about subscription status and entitlements
+  </Card>
+  <Card title="Integration Attributes" icon="plug" href="/guides/integration-attributes">
+    Link third-party analytics and attribution platforms
+  </Card>
+</CardGroup>

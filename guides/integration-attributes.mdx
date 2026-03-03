@@ -1,0 +1,654 @@
+---
+title: Integration Attributes
+description: Link third-party analytics and attribution platforms with Superwall
+---
+
+Integration attributes allow you to connect Superwall with third-party analytics, attribution, and marketing platforms by sharing user IDs across systems.
+
+## Overview
+
+When you use tools like Amplitude, Adjust, AppsFlyer, or other platforms alongside Superwall, integration attributes help you:
+
+- Unify analytics across platforms
+- Track attribution data
+- Build cross-platform cohorts
+- Analyze user journeys
+- Connect subscription events to marketing campaigns
+
+## Setting Integration Attributes
+
+Use the `setIntegrationAttributes` function from `useUser` to link user IDs:
+
+```tsx
+import { useUser } from "expo-superwall";
+
+function App() {
+  const { setIntegrationAttributes } = useUser();
+
+  useEffect(() => {
+    // Set integration attributes
+    setIntegrationAttributes({
+      adjustId: "adjust_user_123",
+      amplitudeUserId: "amp_456",
+      mixpanelDistinctId: "mix_789",
+    });
+  }, []);
+
+  return <YourApp />;
+}
+```
+
+## Supported Integrations
+
+Superwall supports the following third-party integrations:
+
+### Attribution Platforms
+
+<Tabs>
+  <Tab title="Adjust">
+    ```tsx
+    import Adjust from "react-native-adjust";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get Adjust ID
+        Adjust.getAdid((adid) => {
+          setIntegrationAttributes({
+            adjustId: adid,
+          });
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="AppsFlyer">
+    ```tsx
+    import appsFlyer from "react-native-appsflyer";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get AppsFlyer ID
+        appsFlyer.getAppsFlyerUID((error, uid) => {
+          if (!error) {
+            setIntegrationAttributes({
+              appsflyerId: uid,
+            });
+          }
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Kochava">
+    ```tsx
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get Kochava device ID
+        const kochavaId = getKochavaDeviceId(); // Your Kochava SDK method
+        
+        setIntegrationAttributes({
+          kochavaDeviceId: kochavaId,
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Tenjin">
+    ```tsx
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get Tenjin ID
+        const tenjinId = getTenjinId(); // Your Tenjin SDK method
+        
+        setIntegrationAttributes({
+          tenjinId: tenjinId,
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Analytics Platforms
+
+<Tabs>
+  <Tab title="Amplitude">
+    ```tsx
+    import { Amplitude } from "@amplitude/react-native";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        const amplitude = Amplitude.getInstance();
+        
+        setIntegrationAttributes({
+          amplitudeDeviceId: amplitude.getDeviceId(),
+          amplitudeUserId: amplitude.getUserId(),
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Mixpanel">
+    ```tsx
+    import { Mixpanel } from "mixpanel-react-native";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        const mixpanel = new Mixpanel("YOUR_TOKEN");
+        
+        // Get distinct ID
+        mixpanel.getDistinctId().then((distinctId) => {
+          setIntegrationAttributes({
+            mixpanelDistinctId: distinctId,
+          });
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="PostHog">
+    ```tsx
+    import { usePostHog } from "posthog-react-native";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const posthog = usePostHog();
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        if (posthog) {
+          setIntegrationAttributes({
+            posthogUserId: posthog.getDistinctId(),
+          });
+        }
+      }, [posthog]);
+    }
+    ```
+  </Tab>
+
+  <Tab title="mParticle">
+    ```tsx
+    import MParticle from "react-native-mparticle";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get mParticle ID
+        const mpid = MParticle.User.getCurrentUser().getMPID();
+        
+        setIntegrationAttributes({
+          mparticleId: mpid,
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Marketing & Engagement
+
+<Tabs>
+  <Tab title="Braze">
+    ```tsx
+    import Braze from "react-native-appboy-sdk";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        setIntegrationAttributes({
+          brazeAliasName: "user_alias",
+          brazeAliasLabel: "user_label",
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="OneSignal">
+    ```tsx
+    import OneSignal from "react-native-onesignal";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        OneSignal.getDeviceState().then((deviceState) => {
+          if (deviceState?.userId) {
+            setIntegrationAttributes({
+              onesignalId: deviceState.userId,
+            });
+          }
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Airship">
+    ```tsx
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get Airship channel ID
+        const channelId = getAirshipChannelId(); // Your Airship SDK method
+        
+        setIntegrationAttributes({
+          airshipChannelId: channelId,
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Customer.io">
+    ```tsx
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Set Customer.io ID
+        setIntegrationAttributes({
+          customerioId: "customer_123",
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Iterable">
+    ```tsx
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        setIntegrationAttributes({
+          iterableUserId: "iterable_user_123",
+          iterableCampaignId: "campaign_456",
+          iterableTemplateId: "template_789",
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Other Platforms
+
+<Tabs>
+  <Tab title="Firebase">
+    ```tsx
+    import analytics from "@react-native-firebase/analytics";
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        analytics().getAppInstanceId().then((instanceId) => {
+          setIntegrationAttributes({
+            firebaseAppInstanceId: instanceId,
+          });
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Facebook">
+    ```tsx
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get Facebook anonymous ID
+        const fbAnonId = getFacebookAnonId(); // Your implementation
+        
+        setIntegrationAttributes({
+          fbAnonId: fbAnonId,
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+
+  <Tab title="CleverTap">
+    ```tsx
+    import { useUser } from "expo-superwall";
+
+    function App() {
+      const { setIntegrationAttributes } = useUser();
+
+      useEffect(() => {
+        // Get CleverTap ID
+        const clevertapId = getCleverTapId(); // Your CleverTap SDK method
+        
+        setIntegrationAttributes({
+          clevertapId: clevertapId,
+        });
+      }, []);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Available Attributes
+
+Here are all the supported integration attributes:
+
+```tsx
+type IntegrationAttributes = {
+  adjustId?: string;               // Adjust attribution
+  amplitudeDeviceId?: string;      // Amplitude device ID
+  amplitudeUserId?: string;        // Amplitude user ID
+  appsflyerId?: string;            // AppsFlyer ID
+  brazeAliasName?: string;         // Braze alias name
+  brazeAliasLabel?: string;        // Braze alias label
+  onesignalId?: string;            // OneSignal player ID
+  fbAnonId?: string;               // Facebook anonymous ID
+  firebaseAppInstanceId?: string;  // Firebase app instance ID
+  iterableUserId?: string;         // Iterable user ID
+  iterableCampaignId?: string;     // Iterable campaign ID
+  iterableTemplateId?: string;     // Iterable template ID
+  mixpanelDistinctId?: string;     // Mixpanel distinct ID
+  mparticleId?: string;            // mParticle ID
+  clevertapId?: string;            // CleverTap ID
+  airshipChannelId?: string;       // Airship channel ID
+  kochavaDeviceId?: string;        // Kochava device ID
+  tenjinId?: string;               // Tenjin ID
+  posthogUserId?: string;          // PostHog user ID
+  customerioId?: string;           // Customer.io ID
+};
+```
+
+## Getting Integration Attributes
+
+Retrieve currently set integration attributes:
+
+```tsx
+import { useUser } from "expo-superwall";
+
+function DebugScreen() {
+  const { getIntegrationAttributes } = useUser();
+
+  const showAttributes = async () => {
+    const attributes = await getIntegrationAttributes();
+    console.log("Integration attributes:", attributes);
+    // { adjustId: "...", amplitudeUserId: "..." }
+  };
+
+  return <Button title="Show Attributes" onPress={showAttributes} />;
+}
+```
+
+## Complete Example
+
+Here's a complete setup with multiple integrations:
+
+```tsx
+import { useUser } from "expo-superwall";
+import { useEffect } from "react";
+import { Amplitude } from "@amplitude/react-native";
+import appsFlyer from "react-native-appsflyer";
+import { Mixpanel } from "mixpanel-react-native";
+import OneSignal from "react-native-onesignal";
+import analytics from "@react-native-firebase/analytics";
+
+function IntegrationSetup() {
+  const { setIntegrationAttributes } = useUser();
+
+  useEffect(() => {
+    setupIntegrations();
+  }, []);
+
+  const setupIntegrations = async () => {
+    try {
+      // Collect all integration IDs
+      const attributes: Record<string, string> = {};
+
+      // Amplitude
+      const amplitude = Amplitude.getInstance();
+      attributes.amplitudeDeviceId = amplitude.getDeviceId();
+      attributes.amplitudeUserId = amplitude.getUserId();
+
+      // AppsFlyer
+      const appsflyerId = await new Promise<string>((resolve) => {
+        appsFlyer.getAppsFlyerUID((error, uid) => {
+          resolve(uid || "");
+        });
+      });
+      if (appsflyerId) {
+        attributes.appsflyerId = appsflyerId;
+      }
+
+      // Mixpanel
+      const mixpanel = new Mixpanel("YOUR_TOKEN");
+      const mixpanelId = await mixpanel.getDistinctId();
+      if (mixpanelId) {
+        attributes.mixpanelDistinctId = mixpanelId;
+      }
+
+      // OneSignal
+      const deviceState = await OneSignal.getDeviceState();
+      if (deviceState?.userId) {
+        attributes.onesignalId = deviceState.userId;
+      }
+
+      // Firebase
+      const firebaseId = await analytics().getAppInstanceId();
+      if (firebaseId) {
+        attributes.firebaseAppInstanceId = firebaseId;
+      }
+
+      // Set all attributes at once
+      await setIntegrationAttributes(attributes);
+      
+      console.log("Integration attributes set:", Object.keys(attributes));
+    } catch (error) {
+      console.error("Failed to set integration attributes:", error);
+    }
+  };
+
+  return null;
+}
+
+export default IntegrationSetup;
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Set attributes early in app lifecycle">
+    Set integration attributes as soon as possible, ideally right after SDK initialization:
+    ```tsx
+    useEffect(() => {
+      if (user) {
+        setIntegrationAttributes({ /* ... */ });
+      }
+    }, [user]);
+    ```
+  </Accordion>
+
+  <Accordion title="Wait for third-party SDKs to initialize">
+    Make sure analytics SDKs are initialized before getting their IDs:
+    ```tsx
+    const setupIntegrations = async () => {
+      // Wait for Amplitude to be ready
+      await amplitude.init("API_KEY");
+      
+      // Then set attributes
+      await setIntegrationAttributes({
+        amplitudeUserId: amplitude.getUserId(),
+      });
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Handle errors gracefully">
+    Wrap attribute collection in try-catch blocks:
+    ```tsx
+    try {
+      const appsflyerId = await getAppsFlyerId();
+      await setIntegrationAttributes({ appsflyerId });
+    } catch (error) {
+      console.error("Failed to get AppsFlyer ID:", error);
+      // Continue without it
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Update when IDs change">
+    Re-set integration attributes when user IDs change (e.g., after login):
+    ```tsx
+    const handleLogin = async (userId: string) => {
+      await identify(userId);
+      
+      // Update analytics IDs
+      await amplitude.setUserId(userId);
+      
+      // Sync with Superwall
+      await setIntegrationAttributes({
+        amplitudeUserId: userId,
+      });
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Only set relevant platforms">
+    Only include platforms you actually use:
+    ```tsx
+    // ✅ Good - only includes used platforms
+    setIntegrationAttributes({
+      amplitudeUserId: "...",
+      mixpanelDistinctId: "...",
+    });
+
+    // ❌ Bad - includes platforms not in use
+    setIntegrationAttributes({
+      amplitudeUserId: "...",
+      adjustId: undefined,
+      appsflyerId: undefined,
+      // ...
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+### Cross-Platform Attribution
+
+Link Superwall subscription events to attribution campaigns:
+
+```tsx
+import { useUser, useSuperwallEvents } from "expo-superwall";
+import appsFlyer from "react-native-appsflyer";
+
+function AttributionTracking() {
+  const { setIntegrationAttributes } = useUser();
+
+  useEffect(() => {
+    // Set AppsFlyer ID
+    appsFlyer.getAppsFlyerUID((error, uid) => {
+      if (!error) {
+        setIntegrationAttributes({ appsflyerId: uid });
+      }
+    });
+  }, []);
+
+  // Track subscription events in AppsFlyer
+  useSuperwallEvents({
+    onPaywallDismiss: (info, result) => {
+      if (result.type === "purchased") {
+        appsFlyer.logEvent("af_purchase", {
+          af_revenue: "9.99",
+          af_currency: "USD",
+          af_content_id: result.productId,
+        });
+      }
+    },
+  });
+
+  return null;
+}
+```
+
+### Unified Analytics
+
+Connect Superwall events with your analytics platforms:
+
+```tsx
+import { useSuperwallEvents } from "expo-superwall";
+import { Amplitude } from "@amplitude/react-native";
+
+function AnalyticsSync() {
+  const amplitude = Amplitude.getInstance();
+
+  useSuperwallEvents({
+    onPaywallPresent: (info) => {
+      amplitude.logEvent("paywall_viewed", {
+        paywall_id: info.identifier,
+        paywall_name: info.name,
+      });
+    },
+
+    onPaywallDismiss: (info, result) => {
+      amplitude.logEvent("paywall_dismissed", {
+        paywall_id: info.identifier,
+        result_type: result.type,
+      });
+    },
+  });
+
+  return null;
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Managing Users" icon="user" href="/guides/managing-users">
+    Learn about user identification and attributes
+  </Card>
+  <Card title="Handling Subscriptions" icon="credit-card" href="/guides/handling-subscriptions">
+    Track subscription status and entitlements
+  </Card>
+</CardGroup>

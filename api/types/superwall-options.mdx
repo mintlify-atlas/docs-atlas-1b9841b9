@@ -1,0 +1,470 @@
+---
+title: SuperwallOptions
+description: Configuration options for initializing the Superwall SDK
+---
+
+`SuperwallOptions` defines the configuration options for the Superwall SDK. These options control SDK behavior, paywall appearance, logging, and platform-specific features.
+
+## Definition
+
+```typescript
+interface SuperwallOptions {
+  paywalls: PaywallOptions
+  networkEnvironment: NetworkEnvironment
+  isExternalDataCollectionEnabled: boolean
+  localeIdentifier?: string
+  isGameControllerEnabled: boolean
+  logging: LoggingOptions
+  passIdentifiersToPlayStore: boolean
+  storeKitVersion?: "STOREKIT1" | "STOREKIT2"
+  enableExperimentalDeviceVariables: boolean
+  manualPurchaseManagement: boolean
+  shouldObservePurchases: boolean
+  shouldBypassAppTransactionCheck: boolean
+  maxConfigRetryCount: number
+  useMockReviews: boolean
+  testModeBehavior: TestModeBehavior
+}
+```
+
+## Properties
+
+### Paywall Options
+
+<ResponseField name="paywalls" type="PaywallOptions" required>
+  Options for configuring the appearance and behavior of paywalls.
+  
+  <Expandable title="PaywallOptions properties">
+    <ResponseField name="isHapticFeedbackEnabled" type="boolean" default={true}>
+      Enable haptic feedback on paywall interactions.
+    </ResponseField>
+    
+    <ResponseField name="restoreFailed" type="RestoreFailed" required>
+      Messaging for the alert shown when transaction restoration fails.
+      
+      <Expandable title="RestoreFailed properties">
+        <ResponseField name="title" type="string" default="No Subscription Found">
+          Alert title.
+        </ResponseField>
+        <ResponseField name="message" type="string" default="We couldn't find an active subscription for your account.">
+          Alert message.
+        </ResponseField>
+        <ResponseField name="closeButtonTitle" type="string" default="Okay">
+          Close button text.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="shouldShowPurchaseFailureAlert" type="boolean" default={true}>
+      Show an alert when a purchase fails.
+    </ResponseField>
+    
+    <ResponseField name="shouldPreload" type="boolean" default={false}>
+      Automatically preload paywalls on SDK initialization.
+    </ResponseField>
+    
+    <ResponseField name="automaticallyDismiss" type="boolean" default={true}>
+      Automatically dismiss the paywall after a successful purchase or restore.
+    </ResponseField>
+    
+    <ResponseField name="transactionBackgroundView" type="TransactionBackgroundView" default="spinner">
+      View displayed behind Apple's payment sheet during a transaction.
+      
+      - `"spinner"` - Show a loading spinner
+      - `"none"` - Show nothing
+    </ResponseField>
+    
+    <ResponseField name="shouldShowWebPurchaseConfirmationAlert" type="boolean" default={false}>
+      Show a confirmation alert for web-based purchases (Stripe, Paddle).
+    </ResponseField>
+    
+    <ResponseField name="onBackPressed" type="(paywallInfo: PaywallInfo) => boolean">
+      Android-only callback when the back button is pressed on a paywall.
+      
+      Return `true` to handle the back press yourself, or `false` to use default behavior.
+      
+      **Platform:** Android only
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Network & Environment
+
+<ResponseField name="networkEnvironment" type="NetworkEnvironment" default="release">
+  The network environment for Superwall.
+  
+  - `"release"` - Production environment
+  - `"releaseCandidate"` - Pre-production testing
+  - `"developer"` - Development environment
+</ResponseField>
+
+<ResponseField name="isExternalDataCollectionEnabled" type="boolean" default={true}>
+  Enable external data collection for analytics and attribution.
+  
+  Set to `false` to disable data collection for privacy-sensitive apps.
+</ResponseField>
+
+### Localization
+
+<ResponseField name="localeIdentifier" type="string">
+  Override the device's locale for paywall content.
+  
+  Example: `"en_US"`, `"es_ES"`, `"fr_FR"`
+  
+  If not set, uses the device's current locale.
+</ResponseField>
+
+### Logging
+
+<ResponseField name="logging" type="LoggingOptions" required>
+  Configure SDK logging behavior.
+  
+  <Expandable title="LoggingOptions properties">
+    <ResponseField name="level" type="LogLevel" default="info">
+      The verbosity level for logs.
+      
+      - `"debug"` - Detailed debugging information
+      - `"info"` - General information
+      - `"warn"` - Warnings
+      - `"error"` - Errors only
+      - `"none"` - Disable all logging
+    </ResponseField>
+    
+    <ResponseField name="scopes" type="LogScope[]" default={["all"]}>
+      Specific SDK components to log.
+      
+      Examples: `["paywallEvents", "network", "productsManager"]`
+      
+      Use `["all"]` to log all scopes.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Platform-Specific Options
+
+<ResponseField name="isGameControllerEnabled" type="boolean" default={false}>
+  Enable game controller support for navigating paywalls.
+  
+  **Platform:** iOS only
+</ResponseField>
+
+<ResponseField name="passIdentifiersToPlayStore" type="boolean" default={false}>
+  Pass user identifiers to Google Play Store for purchase attribution.
+  
+  **Platform:** Android only
+</ResponseField>
+
+<ResponseField name="storeKitVersion" type="'STOREKIT1' | 'STOREKIT2'">
+  The version of StoreKit to use for purchases.
+  
+  If not specified, the SDK will automatically choose the appropriate version.
+  
+  **Platform:** iOS only
+</ResponseField>
+
+<ResponseField name="shouldBypassAppTransactionCheck" type="boolean" default={false}>
+  Disable the app transaction check on SDK launch.
+  
+  **Platform:** iOS only
+</ResponseField>
+
+<ResponseField name="maxConfigRetryCount" type="number" default={6}>
+  Number of times the SDK will attempt to get the Superwall configuration after a network failure before timing out.
+  
+  **Platform:** iOS only
+</ResponseField>
+
+<ResponseField name="useMockReviews" type="boolean" default={false}>
+  Enable mock review functionality for testing.
+  
+  **Platform:** Android only
+</ResponseField>
+
+### Purchase Management
+
+<ResponseField name="manualPurchaseManagement" type="boolean" default={false}>
+  Enable manual purchase management mode.
+  
+  When `true`, you're responsible for handling purchases through the `onPurchase` and `onPurchaseRestore` callbacks.
+</ResponseField>
+
+<ResponseField name="shouldObservePurchases" type="boolean" default={false}>
+  Observe purchases made outside of Superwall.
+  
+  When `true`, Superwall will observe StoreKit/Play Store transactions and report them.
+  
+  **Platform:** iOS and Android
+</ResponseField>
+
+### Testing & Development
+
+<ResponseField name="enableExperimentalDeviceVariables" type="boolean" default={false}>
+  Enable experimental device variables for advanced targeting.
+</ResponseField>
+
+<ResponseField name="testModeBehavior" type="TestModeBehavior" default="automatic">
+  Controls when the SDK enters test mode.
+  
+  - `"automatic"` - Enter test mode when appropriate (default)
+  - `"whenEnabledForUser"` - Only when enabled for specific users
+  - `"never"` - Never enter test mode
+  - `"always"` - Always in test mode
+  
+  **Platform:** iOS and Android
+</ResponseField>
+
+## Usage
+
+### Basic Configuration
+
+```typescript
+import { SuperwallProvider } from 'expo-superwall'
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKey="YOUR_API_KEY"
+      options={{
+        logging: {
+          level: 'info',
+          scopes: ['all']
+        },
+        paywalls: {
+          shouldPreload: true,
+          automaticallyDismiss: true
+        }
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  )
+}
+```
+
+### Production Configuration
+
+```typescript
+import { SuperwallProvider } from 'expo-superwall'
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKey={process.env.EXPO_PUBLIC_SUPERWALL_API_KEY}
+      options={{
+        networkEnvironment: 'release',
+        logging: {
+          level: 'error', // Only log errors in production
+          scopes: ['all']
+        },
+        paywalls: {
+          shouldPreload: true,
+          automaticallyDismiss: true,
+          restoreFailed: {
+            title: 'Restore Failed',
+            message: 'We could not find your subscription. Please contact support.',
+            closeButtonTitle: 'OK'
+          }
+        },
+        isExternalDataCollectionEnabled: true,
+        shouldObservePurchases: false
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  )
+}
+```
+
+### Development Configuration
+
+```typescript
+import { SuperwallProvider } from 'expo-superwall'
+import { Platform } from 'react-native'
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKey={process.env.EXPO_PUBLIC_SUPERWALL_API_KEY}
+      options={{
+        networkEnvironment: 'developer',
+        logging: {
+          level: 'debug', // Detailed logging for development
+          scopes: ['all']
+        },
+        paywalls: {
+          shouldPreload: false, // Faster testing without preload
+          isHapticFeedbackEnabled: Platform.OS === 'ios'
+        },
+        testModeBehavior: 'always'
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  )
+}
+```
+
+### Manual Purchase Management
+
+```typescript
+import { SuperwallProvider, usePurchaseController } from 'expo-superwall'
+
+function PurchaseHandler() {
+  const purchaseController = usePurchaseController({
+    onPurchase: async (params) => {
+      console.log('Purchase initiated:', params.productId)
+      
+      // Handle purchase with your own logic
+      const result = await myPurchaseSystem.purchase(params.productId)
+      
+      return result.success ? 'purchased' : 'cancelled'
+    },
+    onPurchaseRestore: async () => {
+      console.log('Restore initiated')
+      
+      // Handle restore with your own logic
+      const result = await myPurchaseSystem.restore()
+      
+      return result.success ? 'restored' : 'failed'
+    }
+  })
+  
+  return null
+}
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKey="YOUR_API_KEY"
+      options={{
+        manualPurchaseManagement: true
+      }}
+    >
+      <PurchaseHandler />
+      <YourApp />
+    </SuperwallProvider>
+  )
+}
+```
+
+### Localized Configuration
+
+```typescript
+import { SuperwallProvider } from 'expo-superwall'
+import * as Localization from 'expo-localization'
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKey="YOUR_API_KEY"
+      options={{
+        localeIdentifier: Localization.locale, // e.g., "en-US"
+        paywalls: {
+          restoreFailed: {
+            title: 'No se encontró suscripción',
+            message: 'No pudimos encontrar una suscripción activa.',
+            closeButtonTitle: 'OK'
+          }
+        }
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  )
+}
+```
+
+### Platform-Specific Configuration
+
+```typescript
+import { SuperwallProvider } from 'expo-superwall'
+import { Platform } from 'react-native'
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKey="YOUR_API_KEY"
+      options={{
+        paywalls: {
+          isHapticFeedbackEnabled: Platform.OS === 'ios',
+          onBackPressed: Platform.OS === 'android' 
+            ? (info) => {
+                console.log('Back pressed on paywall:', info.identifier)
+                return false // Use default behavior
+              }
+            : undefined
+        },
+        storeKitVersion: Platform.OS === 'ios' ? 'STOREKIT2' : undefined,
+        passIdentifiersToPlayStore: Platform.OS === 'android',
+        useMockReviews: Platform.OS === 'android' && __DEV__
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  )
+}
+```
+
+## Default Options
+
+All options have sensible defaults. You can provide partial options, and the SDK will merge them with the defaults:
+
+```typescript
+import { DefaultSuperwallOptions } from 'expo-superwall'
+
+// These are the default values
+const defaults: SuperwallOptions = {
+  paywalls: {
+    isHapticFeedbackEnabled: true,
+    restoreFailed: {
+      title: "No Subscription Found",
+      message: "We couldn't find an active subscription for your account.",
+      closeButtonTitle: "Okay",
+    },
+    shouldShowPurchaseFailureAlert: true,
+    shouldPreload: false,
+    automaticallyDismiss: true,
+    transactionBackgroundView: "spinner",
+    shouldShowWebPurchaseConfirmationAlert: false,
+  },
+  networkEnvironment: "release",
+  isExternalDataCollectionEnabled: true,
+  isGameControllerEnabled: false,
+  logging: {
+    level: "info",
+    scopes: ["all"],
+  },
+  passIdentifiersToPlayStore: false,
+  enableExperimentalDeviceVariables: false,
+  manualPurchaseManagement: false,
+  shouldObservePurchases: false,
+  shouldBypassAppTransactionCheck: false,
+  maxConfigRetryCount: 6,
+  useMockReviews: false,
+  testModeBehavior: "automatic",
+}
+```
+
+## Best Practices
+
+<Tip>
+**Use environment variables** for API keys and environment-specific configuration to keep your code clean and secure.
+</Tip>
+
+<Warning>
+**Don't hardcode production API keys** in your source code. Use Expo's environment variables or a secure configuration management system.
+</Warning>
+
+<Info>
+**Enable debug logging during development** to troubleshoot issues, but use error-only logging in production to reduce noise.
+</Info>
+
+## Related Types
+
+- [PaywallInfo](/api/types/paywall-info) - Paywall configuration and metadata
+- [UserAttributes](/api/types/user-attributes) - User identification and attributes
+- [SubscriptionStatus](/api/types/subscription-status) - User's subscription state
+
+## Related Components
+
+- [SuperwallProvider](/api/components/superwall-provider) - SDK initialization component

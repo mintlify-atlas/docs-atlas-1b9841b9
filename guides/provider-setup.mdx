@@ -1,0 +1,315 @@
+---
+title: Provider Setup
+description: Configure the SuperwallProvider to initialize the Expo Superwall SDK
+---
+
+The `SuperwallProvider` is the core component that initializes the Superwall SDK with your API keys and configuration options. It should wrap the root of your application or the part that requires Superwall functionality.
+
+## Basic Setup
+
+<Steps>
+  <Step title="Install the package">
+    Install `expo-superwall` using your package manager:
+
+    ```bash
+    npx expo install expo-superwall
+    # or
+    bunx expo install expo-superwall
+    ```
+  </Step>
+
+  <Step title="Wrap your app with SuperwallProvider">
+    Import and configure the provider with your API keys:
+
+    ```tsx
+    import { SuperwallProvider } from "expo-superwall";
+
+    export default function App() {
+      return (
+        <SuperwallProvider apiKeys={{ ios: "YOUR_IOS_API_KEY", android: "YOUR_ANDROID_API_KEY" }}>
+          {/* Your app content */}
+        </SuperwallProvider>
+      );
+    }
+    ```
+  </Step>
+
+  <Step title="Find your API keys">
+    Get your API keys from your [Superwall dashboard](https://superwall.com/dashboard). You can provide separate keys for iOS and Android, or use the same key for both platforms.
+  </Step>
+</Steps>
+
+## API Keys Configuration
+
+The `apiKeys` prop accepts an object with platform-specific keys:
+
+```tsx
+apiKeys={{
+  ios: "pk_1234567890abcdef",      // Required for iOS
+  android: "pk_0987654321fedcba"    // Required for Android
+}}
+```
+
+<Note>
+  You must provide at least one API key for the platform you're targeting. The SDK will throw an error if no key is provided for the current platform.
+</Note>
+
+## Configuration Options
+
+Customize SDK behavior by passing the `options` prop:
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      options={{
+        paywalls: {
+          shouldPreload: true,
+          isHapticFeedbackEnabled: true,
+          automaticallyDismiss: true,
+        },
+        logging: {
+          level: "debug",
+          scopes: ["all"],
+        },
+      }}
+    >
+      {/* Your app content */}
+    </SuperwallProvider>
+  );
+}
+```
+
+### Paywall Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `shouldPreload` | `boolean` | `false` | Preload all paywalls on SDK initialization |
+| `isHapticFeedbackEnabled` | `boolean` | `true` | Enable haptic feedback for paywall interactions |
+| `automaticallyDismiss` | `boolean` | `true` | Automatically dismiss paywall after purchase |
+| `shouldShowPurchaseFailureAlert` | `boolean` | `true` | Show alert when purchase fails |
+| `transactionBackgroundView` | `"spinner" \| "none"` | `"spinner"` | View shown behind Apple's payment sheet |
+
+### Restore Failed Messaging
+
+Customize the alert shown when restore fails:
+
+```tsx
+options={{
+  paywalls: {
+    restoreFailed: {
+      title: "No Subscription Found",
+      message: "We couldn't find an active subscription for your account.",
+      closeButtonTitle: "Okay",
+    },
+  },
+}}
+```
+
+### Logging Options
+
+Control SDK logging for debugging:
+
+```tsx
+options={{
+  logging: {
+    level: "debug",  // "debug" | "info" | "warn" | "error" | "none"
+    scopes: ["all"],  // Or specific scopes like ["paywallPresentation", "network"]
+  },
+}}
+```
+
+<Tip>
+  Use `level: "debug"` during development and `level: "error"` or `level: "none"` in production.
+</Tip>
+
+### Advanced Options
+
+```tsx
+options={{
+  networkEnvironment: "release",  // "release" | "releaseCandidate" | "developer"
+  isExternalDataCollectionEnabled: true,
+  isGameControllerEnabled: false,
+  shouldObservePurchases: false,
+  testModeBehavior: "automatic",  // "automatic" | "whenEnabledForUser" | "never" | "always"
+  
+  // iOS-specific
+  storeKitVersion: "STOREKIT2",  // "STOREKIT1" | "STOREKIT2"
+  shouldBypassAppTransactionCheck: false,
+  maxConfigRetryCount: 6,
+  
+  // Android-specific
+  passIdentifiersToPlayStore: false,
+  useMockReviews: false,
+}}
+```
+
+## Configuration Error Handling
+
+Handle SDK initialization errors using the `onConfigurationError` callback:
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+
+export default function App() {
+  const handleConfigError = (error: Error) => {
+    console.error("Superwall config failed:", error);
+    // Log to error tracking service
+    // Sentry.captureException(error);
+  };
+
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      onConfigurationError={handleConfigError}
+    >
+      {/* Your app content */}
+    </SuperwallProvider>
+  );
+}
+```
+
+<Note>
+  The SDK gracefully handles offline scenarios and configuration failures. Your app won't hang indefinitely in a loading state.
+</Note>
+
+## Managing Loading States
+
+Use the provided components to handle loading states:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError,
+} from "expo-superwall";
+import { ActivityIndicator, View, Text, Button } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoading>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" />
+          <Text>Loading Superwall...</Text>
+        </View>
+      </SuperwallLoading>
+
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <Text style={{ fontSize: 18, marginBottom: 10 }}>
+              Failed to initialize Superwall
+            </Text>
+            <Text style={{ color: "gray", marginBottom: 20 }}>{error}</Text>
+            <Button title="Retry" onPress={() => {/* retry logic */}} />
+          </View>
+        )}
+      </SuperwallError>
+
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+```
+
+### Component Reference
+
+- **`<SuperwallLoading>`** - Renders children while SDK is initializing
+- **`<SuperwallLoaded>`** - Renders children once SDK is ready
+- **`<SuperwallError>`** - Renders children when configuration fails
+
+## Complete Example
+
+Here's a complete setup with all features:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError,
+} from "expo-superwall";
+import { ActivityIndicator, View, Text } from "react-native";
+
+const SUPERWALL_CONFIG = {
+  apiKeys: {
+    ios: "pk_your_ios_key",
+    android: "pk_your_android_key",
+  },
+  options: {
+    paywalls: {
+      shouldPreload: true,
+      isHapticFeedbackEnabled: true,
+      automaticallyDismiss: true,
+    },
+    logging: {
+      level: __DEV__ ? "debug" : "error",
+      scopes: ["all"],
+    },
+    shouldObservePurchases: true,
+  },
+};
+
+export default function App() {
+  const handleConfigError = (error: Error) => {
+    console.error("Superwall initialization failed:", error.message);
+  };
+
+  return (
+    <SuperwallProvider
+      apiKeys={SUPERWALL_CONFIG.apiKeys}
+      options={SUPERWALL_CONFIG.options}
+      onConfigurationError={handleConfigError}
+    >
+      <SuperwallLoading>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#0000ff" />
+        </View>
+      </SuperwallLoading>
+
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10 }}>
+              Unable to Load
+            </Text>
+            <Text style={{ color: "#666", textAlign: "center" }}>
+              {error}
+            </Text>
+          </View>
+        )}
+      </SuperwallError>
+
+      <SuperwallLoaded>
+        <MainApp />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+
+function MainApp() {
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Your app screens and navigation */}
+    </View>
+  );
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Displaying Paywalls" icon="credit-card" href="/guides/displaying-paywalls">
+    Learn how to trigger and present paywalls using usePlacement
+  </Card>
+  <Card title="Managing Users" icon="user" href="/guides/managing-users">
+    Identify users and manage their attributes
+  </Card>
+</CardGroup>

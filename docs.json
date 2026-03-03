@@ -1,122 +1,109 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Expo Superwall SDK",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#5B4FFF",
+    "light": "#8B7FFF",
+    "dark": "#4A3FE8"
   },
   "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/superwall/expo-superwall"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/superwall/expo-superwall"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/hooks-vs-compat",
+              "concepts/paywalls",
+              "concepts/placements",
+              "concepts/user-management",
+              "concepts/subscription-status"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/provider-setup",
+              "guides/displaying-paywalls",
+              "guides/managing-users",
+              "guides/handling-subscriptions",
+              "guides/error-handling",
+              "guides/integration-attributes",
+              "guides/preloading-paywalls"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Migration",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "migration/from-react-native",
+              "migration/compat-sdk-guide"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Hooks API",
             "pages": [
-              "api-reference/introduction"
+              "api/hooks/use-superwall",
+              "api/hooks/use-placement",
+              "api/hooks/use-user",
+              "api/hooks/use-superwall-events"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Components",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/components/superwall-provider",
+              "api/components/superwall-loading",
+              "api/components/superwall-loaded",
+              "api/components/superwall-error"
+            ]
+          },
+          {
+            "group": "Compat SDK",
+            "pages": [
+              "api/compat/superwall-class",
+              "api/compat/superwall-delegate",
+              "api/compat/purchase-controller"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types/paywall-info",
+              "api/types/paywall-result",
+              "api/types/subscription-status",
+              "api/types/user-attributes",
+              "api/types/superwall-options"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

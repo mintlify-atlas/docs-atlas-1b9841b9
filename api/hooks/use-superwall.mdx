@@ -1,0 +1,290 @@
+---
+title: "useSuperwall"
+description: "Core React hook for accessing the Superwall SDK store, state, and actions"
+---
+
+Core React hook for interacting with the Superwall SDK. This hook provides access to the Superwall store, which includes SDK state (like configuration status, user information, subscription status) and actions (like `identify`, `reset`, `registerPlacement`).
+
+It must be used within a component that is a descendant of `<SuperwallProvider />`.
+
+## Function Signature
+
+```typescript
+function useSuperwall<T = PublicSuperwallStore>(
+  selector?: (state: SuperwallStore) => T
+): T
+```
+
+## Parameters
+
+<ParamField path="selector" type="(state: SuperwallStore) => T" optional>
+  An optional function to select a specific slice of the store's state. This is useful for performance optimization, as components will only re-render if the selected part of the state changes. Uses shallow equality checking via `zustand/shallow`. If omitted, the entire store is returned.
+</ParamField>
+
+## Return Value
+
+The selected slice of the Superwall store state, or the entire store if no selector is provided. The store includes both state and actions.
+
+### Store State
+
+<ResponseField name="isConfigured" type="boolean">
+  Indicates whether the Superwall SDK has been successfully configured.
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  Indicates whether the SDK is currently performing a loading operation (e.g., configuring, fetching data).
+</ResponseField>
+
+<ResponseField name="listenersInitialized" type="boolean">
+  Indicates whether the native event listeners have been initialized.
+</ResponseField>
+
+<ResponseField name="configurationError" type="string | null">
+  Contains error message if SDK configuration failed, `null` otherwise. When this is set, the SDK is not configured and app should show error UI.
+</ResponseField>
+
+<ResponseField name="user" type="UserAttributes | null | undefined">
+  The current user's attributes. `null` if no user is identified or after `reset` is called. `undefined` initially before any user data is fetched or set.
+  
+  **UserAttributes interface:**
+  - `aliasId: string` - The user's alias ID, if set
+  - `appUserId: string` - The user's application-specific user ID
+  - `applicationInstalledAt: string` - ISO 8601 date string of when the app was installed
+  - `seed: number` - Seed value for consistent variant assignments
+  - `[key: string]: any` - Custom attributes
+</ResponseField>
+
+<ResponseField name="subscriptionStatus" type="SubscriptionStatus">
+  The current subscription status of the user. Can be `UNKNOWN`, `INACTIVE`, or `ACTIVE` with entitlements.
+</ResponseField>
+
+### Store Actions
+
+<ResponseField name="identify" type="(userId: string, options?: IdentifyOptions) => Promise<void>">
+  Identifies the current user with a unique ID.
+  
+  **Parameters:**
+  - `userId: string` - The unique identifier for the user
+  - `options?: IdentifyOptions` - Optional parameters:
+    - `restorePaywallAssignments?: boolean` - If true, restores paywall assignments from previous session (defaults to false)
+</ResponseField>
+
+<ResponseField name="registerPlacement" type="(placement: string, params?: Record<string, any>, handlerId?: string | null) => Promise<void>">
+  Registers a placement to potentially show a paywall. The decision to show a paywall is determined by campaign rules and user assignments on the Superwall dashboard.
+  
+  **Parameters:**
+  - `placement: string` - The ID of the placement to register
+  - `params?: Record<string, any>` - Optional parameters to pass with the placement
+  - `handlerId?: string | null` - Internal identifier used to associate event handlers (defaults to "default")
+</ResponseField>
+
+<ResponseField name="getPresentationResult" type="(placement: string, params?: Record<string, any>) => Promise<any>">
+  Retrieves the presentation result for a given placement without actually registering it.
+  
+  **Parameters:**
+  - `placement: string` - The ID of the placement
+  - `params?: Record<string, any>` - Optional parameters for the placement
+</ResponseField>
+
+<ResponseField name="dismiss" type="() => Promise<void>">
+  Dismisses any currently presented Superwall paywall.
+</ResponseField>
+
+<ResponseField name="preloadAllPaywalls" type="() => Promise<void>">
+  Preloads all paywalls configured in your Superwall dashboard.
+</ResponseField>
+
+<ResponseField name="preloadPaywalls" type="(placements: string[]) => Promise<void>">
+  Preloads specific paywalls.
+  
+  **Parameters:**
+  - `placements: string[]` - Array of placement IDs for which to preload paywalls
+</ResponseField>
+
+<ResponseField name="setUserAttributes" type="(attrs: Record<string, any | null>) => Promise<void>">
+  Sets custom attributes for the current user.
+  
+  **Parameters:**
+  - `attrs: Record<string, any | null>` - Object containing the attributes to set
+</ResponseField>
+
+<ResponseField name="getUserAttributes" type="() => Promise<Record<string, any>>">
+  Retrieves the current user's attributes from the SDK.
+</ResponseField>
+
+<ResponseField name="setLogLevel" type="(level: string) => Promise<void>">
+  Sets the logging level for the Superwall SDK.
+  
+  **Parameters:**
+  - `level: string` - The desired log level: "debug", "info", "warn", "error", or "none"
+</ResponseField>
+
+<ResponseField name="setIntegrationAttributes" type="(attributes: IntegrationAttributes) => Promise<void>">
+  Sets attributes for third-party integrations (e.g., Adjust, Amplitude, AppsFlyer).
+  
+  **Parameters:**
+  - `attributes: IntegrationAttributes` - Object mapping integration attribute keys to their IDs
+</ResponseField>
+
+<ResponseField name="getIntegrationAttributes" type="() => Promise<Record<string, string>>">
+  Gets the currently set integration attributes.
+</ResponseField>
+
+<ResponseField name="setSubscriptionStatus" type="(status: SubscriptionStatus) => Promise<void>">
+  Manually sets the subscription status of the user.
+  
+  **Parameters:**
+  - `status: SubscriptionStatus` - The subscription status to set
+</ResponseField>
+
+<ResponseField name="getDeviceAttributes" type="() => Promise<Record<string, any>>">
+  Retrieves device-specific attributes.
+</ResponseField>
+
+<ResponseField name="getEntitlements" type="() => Promise<EntitlementsInfo>">
+  Retrieves the user's entitlements from Superwall's servers, including both active and inactive entitlements.
+</ResponseField>
+
+## Zustand Store Structure
+
+The `useSuperwall` hook is built on top of [Zustand](https://github.com/pmndrs/zustand), a lightweight state management library. The store structure is defined in the `SuperwallStore` interface:
+
+- **State**: Reactive properties that trigger component re-renders when they change
+- **Actions**: Functions that modify state or interact with the native SDK
+- **Selectors**: Optional functions to optimize performance by selecting specific slices of state
+
+The store uses shallow equality checking (via `zustand/shallow`) when a selector is provided, preventing unnecessary re-renders when non-selected state changes.
+
+## Usage Examples
+
+### Get the entire store
+
+```typescript
+import { useSuperwall } from 'expo-superwall';
+
+function MyComponent() {
+  const superwall = useSuperwall();
+  
+  console.log('Configured:', superwall.isConfigured);
+  console.log('User ID:', superwall.user?.appUserId);
+  
+  const handleIdentify = async () => {
+    await superwall.identify('user_123');
+  };
+  
+  return (
+    <Button title="Identify User" onPress={handleIdentify} />
+  );
+}
+```
+
+### Select specific state properties (optimized)
+
+```typescript
+import { useSuperwall } from 'expo-superwall';
+
+function UserStatusDisplay() {
+  // Component only re-renders when user or subscriptionStatus changes
+  const { user, subscriptionStatus } = useSuperwall(state => ({
+    user: state.user,
+    subscriptionStatus: state.subscriptionStatus,
+  }));
+  
+  return (
+    <View>
+      <Text>User ID: {user?.appUserId ?? 'Not logged in'}</Text>
+      <Text>Status: {subscriptionStatus.status}</Text>
+    </View>
+  );
+}
+```
+
+### Access configuration state
+
+```typescript
+import { useSuperwall } from 'expo-superwall';
+
+function ConfigurationGuard() {
+  const { isConfigured, isLoading, configurationError } = useSuperwall(
+    state => ({
+      isConfigured: state.isConfigured,
+      isLoading: state.isLoading,
+      configurationError: state.configurationError,
+    })
+  );
+  
+  if (isLoading) {
+    return <ActivityIndicator />;
+  }
+  
+  if (configurationError) {
+    return <ErrorScreen message={configurationError} />;
+  }
+  
+  if (!isConfigured) {
+    return <Text>SDK not configured</Text>;
+  }
+  
+  return <MainApp />;
+}
+```
+
+### Preload paywalls
+
+```typescript
+import { useSuperwall } from 'expo-superwall';
+import { useEffect } from 'react';
+
+function PaywallPreloader() {
+  const preloadPaywalls = useSuperwall(state => state.preloadPaywalls);
+  
+  useEffect(() => {
+    // Preload specific paywalls on component mount
+    preloadPaywalls(['onboarding', 'premium_feature', 'settings']);
+  }, [preloadPaywalls]);
+  
+  return null;
+}
+```
+
+### Manage user attributes
+
+```typescript
+import { useSuperwall } from 'expo-superwall';
+
+function AttributeManager() {
+  const { setUserAttributes, user } = useSuperwall(state => ({
+    setUserAttributes: state.setUserAttributes,
+    user: state.user,
+  }));
+  
+  const updatePremiumStatus = async () => {
+    await setUserAttributes({
+      isPremium: true,
+      premiumSince: new Date().toISOString(),
+    });
+  };
+  
+  return (
+    <View>
+      <Text>Custom Attributes: {JSON.stringify(user)}</Text>
+      <Button title="Mark as Premium" onPress={updatePremiumStatus} />
+    </View>
+  );
+}
+```
+
+## Related Hooks
+
+- [useUser](/api/hooks/use-user) - Simplified hook for user management
+- [usePlacement](/api/hooks/use-placement) - Hook for paywall presentation
+- [useSuperwallEvents](/api/hooks/use-superwall-events) - Hook for subscribing to SDK events
+
+## Related Types
+
+- `UserAttributes` (useSuperwall.ts:19)
+- `IdentifyOptions` (useSuperwall.ts:37)
+- `SuperwallStore` (useSuperwall.ts:51)
+- `SubscriptionStatus` (SuperwallExpoModule.types.ts:205)
+- `IntegrationAttributes` (SuperwallExpoModule.types.ts:121)
+- `EntitlementsInfo` (SuperwallExpoModule.types.ts:130)

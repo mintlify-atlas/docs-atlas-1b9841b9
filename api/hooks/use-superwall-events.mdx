@@ -1,0 +1,449 @@
+---
+title: "useSuperwallEvents"
+description: "React hook for subscribing to native Superwall SDK events"
+---
+
+React hook for subscribing to a wide range of native Superwall events. This hook allows you to define callback functions for various events emitted by the Superwall SDK, such as paywall presentation, dismissal, subscription status changes, logging, and more. Event listeners are automatically added when the component mounts and removed when it unmounts.
+
+It must be used within a component that is a descendant of `<SuperwallProvider />`.
+
+## Function Signature
+
+```typescript
+function useSuperwallEvents(
+  callbacks?: SuperwallEventCallbacks
+): void
+```
+
+## Parameters
+
+<ParamField path="callbacks" type="SuperwallEventCallbacks" optional>
+  An object where keys are event names and values are the corresponding callback functions.
+
+  ### Paywall Lifecycle Callbacks
+
+  <ParamField path="callbacks.onPaywallPresent" type="(paywallInfo: PaywallInfo) => void" optional>
+    Called when a paywall is presented.
+  </ParamField>
+
+  <ParamField path="callbacks.onPaywallDismiss" type="(paywallInfo: PaywallInfo, result: PaywallResult) => void" optional>
+    Called when a paywall is dismissed.
+    - `result.type` can be: "purchased", "declined", or "restored"
+  </ParamField>
+
+  <ParamField path="callbacks.onPaywallSkip" type="(reason: PaywallSkippedReason) => void" optional>
+    Called when a paywall is skipped.
+    - `reason.type` can be: "Holdout", "NoAudienceMatch", or "PlacementNotFound"
+  </ParamField>
+
+  <ParamField path="callbacks.onPaywallError" type="(error: string) => void" optional>
+    Called when an error occurs during paywall presentation or other SDK operations.
+  </ParamField>
+
+  <ParamField path="callbacks.willPresentPaywall" type="(paywallInfo: PaywallInfo) => void" optional>
+    Called just before a paywall is presented.
+  </ParamField>
+
+  <ParamField path="callbacks.didPresentPaywall" type="(paywallInfo: PaywallInfo) => void" optional>
+    Called after a paywall has been presented.
+  </ParamField>
+
+  <ParamField path="callbacks.willDismissPaywall" type="(paywallInfo: PaywallInfo) => void" optional>
+    Called just before a paywall is dismissed.
+  </ParamField>
+
+  <ParamField path="callbacks.didDismissPaywall" type="(paywallInfo: PaywallInfo) => void" optional>
+    Called after a paywall has been dismissed.
+  </ParamField>
+
+  ### Subscription & User Callbacks
+
+  <ParamField path="callbacks.onSubscriptionStatusChange" type="(status: SubscriptionStatus) => void" optional>
+    Called when the user's subscription status changes.
+  </ParamField>
+
+  ### Purchase Callbacks
+
+  <ParamField path="callbacks.onPurchase" type="(params: any) => void" optional>
+    Called when a purchase is initiated.
+    - iOS: includes `productId` and `platform`
+    - Android: includes `productId`, `platform`, `basePlanId`, and `offerId`
+  </ParamField>
+
+  <ParamField path="callbacks.onPurchaseRestore" type="() => void" optional>
+    Called when a purchase restoration is initiated.
+  </ParamField>
+
+  ### Link & URL Callbacks
+
+  <ParamField path="callbacks.onPaywallWillOpenURL" type="(url: string) => void" optional>
+    Called when the paywall attempts to open a URL.
+  </ParamField>
+
+  <ParamField path="callbacks.onPaywallWillOpenDeepLink" type="(url: string) => void" optional>
+    Called when the paywall attempts to open a deep link.
+  </ParamField>
+
+  <ParamField path="callbacks.willRedeemLink" type="() => void" optional>
+    Called before the SDK attempts to redeem a promotional link.
+  </ParamField>
+
+  <ParamField path="callbacks.didRedeemLink" type="(result: RedemptionResult) => void" optional>
+    Called after the SDK has attempted to redeem a promotional link.
+    - `result.status` can be: "SUCCESS", "ERROR", "CODE_EXPIRED", "INVALID_CODE", or "EXPIRED_SUBSCRIPTION"
+  </ParamField>
+
+  ### General Event Callbacks
+
+  <ParamField path="callbacks.onSuperwallEvent" type="(eventInfo: SuperwallEventInfo) => void" optional>
+    Called for all Superwall internal events. This is a general-purpose event handler that receives all SDK events.
+    - Use this for comprehensive event logging or analytics
+  </ParamField>
+
+  <ParamField path="callbacks.onCustomPaywallAction" type="(name: string) => void" optional>
+    Called when a custom action is triggered from a paywall (e.g., via `superwall.triggerCustomPaywallAction('myAction')`).
+  </ParamField>
+
+  <ParamField path="callbacks.onCustomCallback" type="(callback: CustomCallback) => Promise<CustomCallbackResult> | CustomCallbackResult" optional>
+    Called when a custom callback is invoked from a paywall. Custom callbacks allow paywalls to communicate with the app to perform operations like validation, data fetching, etc.
+    
+    **Parameters:**
+    - `callback.name: string` - The callback name
+    - `callback.variables?: Record<string, any>` - Optional variables from paywall
+    
+    **Must return:**
+    - `status: "success" | "failure"` - Whether the callback succeeded
+    - `data?: Record<string, any>` - Optional data to return to paywall
+  </ParamField>
+
+  ### Logging Callbacks
+
+  <ParamField path="callbacks.onLog" type="(params: LogParams) => void" optional>
+    Called for logging messages from the SDK.
+    
+    **LogParams:**
+    - `level: LogLevel` - "debug", "info", "warn", "error"
+    - `scope: LogScope` - The scope/category of the log
+    - `message: string | null` - The log message
+    - `info: Record<string, any> | null` - Additional info
+    - `error: string | null` - Error message if applicable
+  </ParamField>
+
+  ### Internal Parameters
+
+  <ParamField path="callbacks.handlerId" type="string" optional>
+    An optional identifier used to scope certain events (like `onPaywallPresent`, `onPaywallDismiss`, `onPaywallSkip`) to a specific `usePlacement` hook instance. This is primarily used internally by the `usePlacement` hook.
+  </ParamField>
+
+  <ParamField path="callbacks.onBackPressed" type="(paywallInfo: PaywallInfo) => boolean" optional>
+    **Android only.** Called when the back button is pressed while a paywall is displayed. Only triggered when `rerouteBackButton` is enabled in the paywall settings.
+    
+    **Returns:**
+    - `true` to consume the back press and prevent default dismiss behavior
+    - `false` to allow normal dismiss
+  </ParamField>
+</ParamField>
+
+## Return Value
+
+This hook does not return any values. Its purpose is to set up and tear down event listeners.
+
+## Usage Examples
+
+### Basic event logging
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+
+function EventLogger() {
+  useSuperwallEvents({
+    onPaywallPresent: (info) => {
+      console.log('Paywall presented:', info.name);
+    },
+    onPaywallDismiss: (info, result) => {
+      console.log('Paywall dismissed:', result.type);
+      if (result.type === 'purchased') {
+        console.log('Product purchased:', result.productId);
+      }
+    },
+    onSubscriptionStatusChange: (status) => {
+      console.log('Subscription status changed:', status.status);
+    },
+  });
+
+  return null; // This component only sets up listeners
+}
+```
+
+### Comprehensive event tracking
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+
+function AnalyticsTracker() {
+  useSuperwallEvents({
+    onSuperwallEvent: (eventInfo) => {
+      // Track all Superwall events in your analytics
+      analytics.track('Superwall Event', {
+        event: eventInfo.event.event,
+        params: eventInfo,
+      });
+    },
+    onPaywallPresent: (info) => {
+      analytics.track('Paywall Shown', {
+        paywallId: info.identifier,
+        paywallName: info.name,
+        experimentId: info.experiment?.id,
+      });
+    },
+    onPaywallDismiss: (info, result) => {
+      analytics.track('Paywall Dismissed', {
+        paywallId: info.identifier,
+        resultType: result.type,
+        productId: result.type === 'purchased' ? result.productId : null,
+      });
+    },
+  });
+
+  return null;
+}
+```
+
+### Error tracking
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+
+function ErrorTracker() {
+  useSuperwallEvents({
+    onPaywallError: (error) => {
+      // Log error to error tracking service
+      Sentry.captureMessage(`Superwall Paywall Error: ${error}`, 'error');
+    },
+    onLog: (params) => {
+      if (params.level === 'error') {
+        Sentry.captureMessage(
+          `Superwall SDK Error [${params.scope}]: ${params.message}`,
+          'error'
+        );
+      }
+    },
+  });
+
+  return null;
+}
+```
+
+### Custom logging
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+
+function CustomLogger() {
+  useSuperwallEvents({
+    onLog: ({ level, scope, message, info, error }) => {
+      if (level === 'error' || level === 'warn') {
+        console.log(`[Superwall ${level.toUpperCase()}] [${scope}]`);
+        console.log('Message:', message);
+        if (info) console.log('Info:', info);
+        if (error) console.log('Error:', error);
+      }
+    },
+  });
+
+  return null;
+}
+```
+
+### Purchase flow tracking
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+import { useState } from 'react';
+
+function PurchaseFlowTracker() {
+  const [isPurchasing, setIsPurchasing] = useState(false);
+
+  useSuperwallEvents({
+    onPurchase: (params) => {
+      setIsPurchasing(true);
+      console.log('Purchase started:', params.productId);
+      analytics.track('Purchase Initiated', params);
+    },
+    onPaywallDismiss: (info, result) => {
+      setIsPurchasing(false);
+      
+      if (result.type === 'purchased') {
+        analytics.track('Purchase Completed', {
+          productId: result.productId,
+          paywallId: info.identifier,
+        });
+      }
+    },
+    onPurchaseRestore: () => {
+      console.log('Purchase restoration started');
+      analytics.track('Restore Purchases Initiated');
+    },
+  });
+
+  return null;
+}
+```
+
+### Deep link handling
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+import { Linking } from 'react-native';
+
+function DeepLinkHandler() {
+  useSuperwallEvents({
+    onPaywallWillOpenURL: (url) => {
+      console.log('Opening URL:', url);
+      // Custom URL handling logic
+      Linking.openURL(url);
+    },
+    onPaywallWillOpenDeepLink: (url) => {
+      console.log('Opening deep link:', url);
+      // Custom deep link handling
+      handleDeepLink(url);
+    },
+  });
+
+  return null;
+}
+```
+
+### Promotional code redemption
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+import { Alert } from 'react-native';
+
+function PromoCodeHandler() {
+  useSuperwallEvents({
+    willRedeemLink: () => {
+      console.log('Redeeming promotional code...');
+    },
+    didRedeemLink: (result) => {
+      if (result.status === 'SUCCESS') {
+        Alert.alert('Success', 'Promotional code redeemed!');
+        console.log('Redemption info:', result.redemptionInfo);
+      } else if (result.status === 'CODE_EXPIRED') {
+        Alert.alert('Expired', 'This promotional code has expired.');
+      } else if (result.status === 'INVALID_CODE') {
+        Alert.alert('Invalid', 'This promotional code is invalid.');
+      } else if (result.status === 'ERROR') {
+        Alert.alert('Error', result.error.message);
+      }
+    },
+  });
+
+  return null;
+}
+```
+
+### Custom callback implementation
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+
+function CustomCallbackHandler() {
+  useSuperwallEvents({
+    onCustomCallback: async (callback) => {
+      console.log('Custom callback:', callback.name);
+      console.log('Variables:', callback.variables);
+      
+      // Handle different callback types
+      if (callback.name === 'validate_email') {
+        const email = callback.variables?.email;
+        const isValid = validateEmail(email);
+        
+        return {
+          status: isValid ? 'success' : 'failure',
+          data: {
+            isValid,
+            message: isValid ? 'Email is valid' : 'Invalid email format',
+          },
+        };
+      }
+      
+      if (callback.name === 'fetch_user_data') {
+        try {
+          const userData = await fetchUserData();
+          return {
+            status: 'success',
+            data: userData,
+          };
+        } catch (error) {
+          return {
+            status: 'failure',
+            data: { error: error.message },
+          };
+        }
+      }
+      
+      // Default: return failure for unknown callbacks
+      return { status: 'failure' };
+    },
+  });
+
+  return null;
+}
+```
+
+### Lifecycle event tracking
+
+```typescript
+import { useSuperwallEvents } from 'expo-superwall';
+
+function PaywallLifecycleTracker() {
+  useSuperwallEvents({
+    willPresentPaywall: (info) => {
+      console.log('About to present:', info.name);
+      analytics.track('Paywall Will Present', { paywallId: info.identifier });
+    },
+    didPresentPaywall: (info) => {
+      console.log('Presented:', info.name);
+      analytics.track('Paywall Did Present', { paywallId: info.identifier });
+    },
+    willDismissPaywall: (info) => {
+      console.log('About to dismiss:', info.name);
+      analytics.track('Paywall Will Dismiss', { paywallId: info.identifier });
+    },
+    didDismissPaywall: (info) => {
+      console.log('Dismissed:', info.name);
+      analytics.track('Paywall Did Dismiss', { paywallId: info.identifier });
+    },
+  });
+
+  return null;
+}
+```
+
+## Best Practices
+
+1. **Use for global event tracking**: This hook is ideal for app-wide event logging, analytics, and monitoring
+2. **Keep callbacks lightweight**: Event callbacks should execute quickly to avoid blocking the UI
+3. **Use `usePlacement` for placement-specific events**: For paywall-specific logic, prefer `usePlacement` callbacks over this hook
+4. **Avoid state updates in all event callbacks**: Be selective about which events trigger state updates to prevent excessive re-renders
+5. **Implement error handling**: Always handle errors in async callbacks (like `onCustomCallback`)
+
+## Related Hooks
+
+- [usePlacement](/api/hooks/use-placement) - Higher-level hook for paywall presentation with scoped events
+- [useUser](/api/hooks/use-user) - User management hook
+- [useSuperwall](/api/hooks/use-superwall) - Core SDK access hook
+
+## Related Types
+
+- `SuperwallEventCallbacks` (useSuperwallEvents.ts:23)
+- `PaywallInfo` (SuperwallExpoModule.types.ts:392)
+- `PaywallResult` (SuperwallExpoModule.types.ts:177)
+- `PaywallSkippedReason` (SuperwallExpoModule.types.ts:148)
+- `SubscriptionStatus` (SuperwallExpoModule.types.ts:205)
+- `SuperwallEventInfo` (SuperwallExpoModule.types.ts - see SuperwallEvent union type)
+- `CustomCallback` (SuperwallExpoModule.types.ts:499)
+- `CustomCallbackResult` (SuperwallExpoModule.types.ts:517)
+- `RedemptionResult` (SuperwallExpoModule.types.ts:769)
+- `LogLevel` and `LogScope` types in SuperwallExpoModule.types.ts

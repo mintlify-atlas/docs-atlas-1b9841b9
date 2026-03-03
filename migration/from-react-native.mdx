@@ -1,0 +1,388 @@
+---
+title: "Migrating from React Native Superwall"
+description: "Complete guide for migrating from react-native-superwall to expo-superwall"
+icon: "arrow-right-arrow-left"
+---
+
+## Overview
+
+This guide will help you migrate from the legacy `react-native-superwall` SDK to the new `expo-superwall` SDK. The new SDK is built specifically for Expo and requires **Expo SDK 53 or newer**.
+
+<Warning>
+  **Expo SDK 53+ Required**: This SDK only supports Expo SDK version 53 and newer. If you're using an older Expo version, continue using the [legacy React Native SDK](https://github.com/superwall/react-native-superwall).
+</Warning>
+
+## Choose Your Migration Path
+
+You have two options for migrating to `expo-superwall`:
+
+<CardGroup cols={2}>
+  <Card title="Hooks-based SDK" icon="react" href="#option-1-hooks-based-sdk">
+    **Recommended for most projects**. Modern React hooks interface with better TypeScript support and developer experience.
+  </Card>
+  
+  <Card title="Compat SDK" icon="boxes-stacked" href="/migration/compat-sdk-guide">
+    **Quick migration path**. Drop-in replacement with minimal code changes. Uses the familiar class-based API.
+  </Card>
+</CardGroup>
+
+<Tip>
+  If you're starting a new project or want the best developer experience, choose the **Hooks-based SDK**. If you need to migrate quickly with minimal changes, use the **Compat SDK**.
+</Tip>
+
+## Option 1: Hooks-based SDK
+
+The hooks-based SDK provides a modern React interface with better state management and TypeScript support.
+
+### Step 1: Update Dependencies
+
+First, uninstall the old package and install the new one:
+
+```bash
+npm uninstall react-native-superwall
+npx expo install expo-superwall
+```
+
+### Step 2: Replace Configuration
+
+<CodeGroup>
+
+```tsx Old (react-native-superwall)
+import Superwall from 'react-native-superwall';
+
+// In your app initialization
+await Superwall.configure({
+  apiKey: 'your_api_key',
+  options: {
+    // options
+  },
+});
+```
+
+```tsx New (expo-superwall)
+import { SuperwallProvider } from 'expo-superwall';
+
+// Wrap your app with the provider
+export default function App() {
+  return (
+    <SuperwallProvider 
+      apiKeys={{ 
+        ios: 'your_ios_api_key',
+        android: 'your_android_api_key' 
+      }}
+      options={{
+        // options
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+```
+
+</CodeGroup>
+
+### Step 3: Migrate User Management
+
+<CodeGroup>
+
+```tsx Old (react-native-superwall)
+import Superwall from 'react-native-superwall';
+
+// Identify user
+await Superwall.shared.identify({ userId: 'user_123' });
+
+// Set user attributes
+await Superwall.shared.setUserAttributes({
+  name: 'John Doe',
+  email: 'john@example.com',
+});
+
+// Reset user
+await Superwall.shared.reset();
+```
+
+```tsx New (expo-superwall)
+import { useUser } from 'expo-superwall';
+
+function MyComponent() {
+  const { identify, update, signOut, user, subscriptionStatus } = useUser();
+
+  // Identify user
+  await identify('user_123');
+
+  // Set user attributes
+  await update({
+    name: 'John Doe',
+    email: 'john@example.com',
+  });
+
+  // Reset user
+  signOut();
+
+  // Access user data
+  console.log(user?.appUserId);
+  console.log(subscriptionStatus?.status);
+}
+```
+
+</CodeGroup>
+
+### Step 4: Migrate Paywall Registration
+
+<CodeGroup>
+
+```tsx Old (react-native-superwall)
+import Superwall from 'react-native-superwall';
+
+// Register placement
+await Superwall.shared.register({
+  placement: 'my_placement',
+  feature: () => {
+    // Feature logic
+    console.log('Feature unlocked!');
+  },
+});
+```
+
+```tsx New (expo-superwall)
+import { usePlacement } from 'expo-superwall';
+
+function MyComponent() {
+  const { registerPlacement, state } = usePlacement({
+    onPresent: (info) => console.log('Paywall presented:', info),
+    onDismiss: (info, result) => console.log('Paywall dismissed:', result),
+    onError: (error) => console.error('Error:', error),
+  });
+
+  const showFeature = async () => {
+    await registerPlacement({
+      placement: 'my_placement',
+      feature: () => {
+        // Feature logic
+        console.log('Feature unlocked!');
+      },
+    });
+  };
+
+  return <Button title="Show Feature" onPress={showFeature} />;
+}
+```
+
+</CodeGroup>
+
+### Step 5: Migrate Event Handling
+
+<CodeGroup>
+
+```tsx Old (react-native-superwall)
+import Superwall, { SuperwallDelegate } from 'react-native-superwall';
+
+class MyDelegate extends SuperwallDelegate {
+  handleSuperwallEvent(eventInfo) {
+    console.log('Event:', eventInfo.event.type);
+  }
+
+  subscriptionStatusDidChange(from, to) {
+    console.log('Subscription changed:', from, to);
+  }
+}
+
+const delegate = new MyDelegate();
+await Superwall.shared.setDelegate(delegate);
+```
+
+```tsx New (expo-superwall)
+import { useSuperwallEvents } from 'expo-superwall';
+
+function MyComponent() {
+  useSuperwallEvents({
+    onSuperwallEvent: (eventInfo) => {
+      console.log('Event:', eventInfo.event.event);
+    },
+    onSubscriptionStatusChange: (status) => {
+      console.log('Subscription status:', status.status);
+    },
+  });
+
+  return <YourContent />;
+}
+```
+
+</CodeGroup>
+
+### Step 6: Handle Loading States
+
+The new SDK provides components to handle loading states:
+
+```tsx
+import { 
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError 
+} from 'expo-superwall';
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: API_KEY }}>
+      <SuperwallLoading>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SuperwallLoading>
+
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Text>Failed to initialize: {error}</Text>
+          </View>
+        )}
+      </SuperwallError>
+
+      <SuperwallLoaded>
+        <MainApp />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+```
+
+## Option 2: Compat SDK (Quick Migration)
+
+For a faster migration path with minimal code changes, use the compat SDK. See the [Compat SDK Guide](/migration/compat-sdk-guide) for detailed instructions.
+
+## Breaking Changes
+
+### Version 1.0.0+
+
+<Warning>
+  **Removed**: The `collectAdServicesAttribution` option has been removed. AdServices attribution is now collected automatically by the native iOS SDK.
+</Warning>
+
+### Package Name
+
+- **Old**: `react-native-superwall`
+- **New**: `expo-superwall`
+
+### Minimum Requirements
+
+- **Expo SDK**: Version 53 or newer required
+- **React Native**: Version compatible with Expo SDK 53+
+
+### Configuration
+
+- SDK is now configured via `<SuperwallProvider>` component instead of imperative `configure()` call
+- API keys are now separated by platform (`ios` and `android`)
+
+### API Differences
+
+| Old API | New Hooks API | Notes |
+|---------|--------------|-------|
+| `Superwall.shared.identify()` | `useUser().identify()` | Must be called inside a component |
+| `Superwall.shared.setUserAttributes()` | `useUser().update()` | Supports updater function |
+| `Superwall.shared.reset()` | `useUser().signOut()` | Renamed for clarity |
+| `Superwall.shared.register()` | `usePlacement().registerPlacement()` | Callbacks moved to hook options |
+| `SuperwallDelegate` class | `useSuperwallEvents()` hook | Event-based instead of class-based |
+| `Superwall.shared.dismiss()` | `useSuperwall().dismiss()` | Same functionality |
+| `Superwall.shared.preloadAllPaywalls()` | `useSuperwall().preloadAllPaywalls()` | Same functionality |
+
+### New Configuration Options
+
+Version 1.0.0 added several new configuration options:
+
+```tsx
+<SuperwallProvider
+  apiKeys={{ ios: API_KEY }}
+  options={{
+    // New iOS & Android option
+    shouldObservePurchases: true, // Observe purchases made outside Superwall
+    
+    // New iOS-only options
+    shouldBypassAppTransactionCheck: false, // Disable app transaction check
+    maxConfigRetryCount: 6, // Number of config fetch retries
+    
+    // New Android-only option
+    useMockReviews: false, // Enable mock review functionality
+  }}
+/>
+```
+
+## Migration Checklist
+
+<Steps>
+  <Step title="Update dependencies">
+    Uninstall `react-native-superwall` and install `expo-superwall`
+  </Step>
+  
+  <Step title="Choose your approach">
+    Decide between Hooks-based SDK (recommended) or Compat SDK (quick migration)
+  </Step>
+  
+  <Step title="Update configuration">
+    Replace `Superwall.configure()` with `<SuperwallProvider>` or `Superwall.configure()` in compat
+  </Step>
+  
+  <Step title="Migrate user management">
+    Update identify, setUserAttributes, and reset calls
+  </Step>
+  
+  <Step title="Migrate paywall registration">
+    Update placement registration calls
+  </Step>
+  
+  <Step title="Migrate event handling">
+    Replace SuperwallDelegate with event hooks or keep using compat delegate
+  </Step>
+  
+  <Step title="Test thoroughly">
+    Test all paywall flows, user identification, and event handling
+  </Step>
+</Steps>
+
+## Common Migration Issues
+
+### Issue: "Expo SDK version not supported"
+
+<Warning>
+  **Solution**: Upgrade to Expo SDK 53 or newer, or continue using the legacy `react-native-superwall` package.
+</Warning>
+
+### Issue: "Cannot access Superwall.shared before configure"
+
+<Tip>
+  **Solution**: With the Hooks SDK, ensure your components are wrapped in `<SuperwallProvider>`. With the Compat SDK, call `Superwall.configure()` before accessing `Superwall.shared`.
+</Tip>
+
+### Issue: "User attributes not updating"
+
+```tsx
+// ❌ Wrong: Direct object
+await update({ name: 'John' });
+
+// ✅ Correct: Use updater function to merge with existing attributes
+await update((oldAttributes) => ({
+  ...oldAttributes,
+  name: 'John',
+}));
+```
+
+## Getting Help
+
+If you encounter issues during migration:
+
+- Check the [CHANGELOG](https://github.com/superwall/superwall-expo/blob/main/CHANGELOG.md) for version-specific changes
+- Review the [Compat SDK Guide](/migration/compat-sdk-guide) for the quick migration path
+- Join our [Discord Community](https://discord.gg/superwall)
+- Contact [Support](mailto:jake@superwall.com)
+- [Report Issues](https://github.com/superwall/superwall-expo/issues) on GitHub
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Compat SDK Guide" icon="boxes-stacked" href="/migration/compat-sdk-guide">
+    Learn about the quick migration path using the compatibility SDK
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/hooks/use-superwall">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>

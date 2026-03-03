@@ -1,0 +1,479 @@
+---
+title: Displaying Paywalls
+description: Use the usePlacement hook to register placements and present paywalls
+---
+
+The `usePlacement` hook is the primary way to display paywalls in your app. It manages paywall state and provides callbacks for all paywall lifecycle events.
+
+## Basic Usage
+
+<Steps>
+  <Step title="Import the hook">
+    ```tsx
+    import { usePlacement } from "expo-superwall";
+    ```
+  </Step>
+
+  <Step title="Call usePlacement in your component">
+    ```tsx
+    function FeatureScreen() {
+      const { registerPlacement, state } = usePlacement({
+        onPresent: (info) => console.log("Paywall presented:", info.name),
+        onDismiss: (info, result) => console.log("Paywall dismissed:", result.type),
+      });
+
+      return (
+        <Button
+          title="Unlock Premium Feature"
+          onPress={() => registerPlacement({ placement: "premium_feature" })}
+        />
+      );
+    }
+    ```
+  </Step>
+
+  <Step title="Handle the feature callback">
+    Execute your feature logic when the user has access:
+
+    ```tsx
+    const handleUnlock = async () => {
+      await registerPlacement({
+        placement: "premium_feature",
+        feature: () => {
+          // User has access - execute feature
+          navigation.navigate("PremiumFeature");
+        },
+      });
+    };
+    ```
+  </Step>
+</Steps>
+
+## The registerPlacement Function
+
+The `registerPlacement` function accepts a configuration object:
+
+```tsx
+await registerPlacement({
+  placement: "placement_id",  // Required: The placement name from your dashboard
+  params: { source: "home" }, // Optional: Custom parameters
+  feature: () => {             // Optional: Called when user has access
+    console.log("Feature unlocked!");
+  },
+});
+```
+
+### Placement Parameter
+
+The `placement` string corresponds to placement IDs configured in your Superwall dashboard:
+
+```tsx
+// Different placements for different features
+registerPlacement({ placement: "onboarding" });
+registerPlacement({ placement: "premium_export" });
+registerPlacement({ placement: "remove_ads" });
+```
+
+### Custom Parameters
+
+Pass additional data to customize paywall behavior:
+
+```tsx
+registerPlacement({
+  placement: "premium_feature",
+  params: {
+    source: "home_screen",
+    featureName: "PDF Export",
+    userTier: "free",
+  },
+});
+```
+
+These parameters can be used in your Superwall dashboard for:
+- Audience targeting rules
+- A/B testing variants
+- Paywall content customization
+- Analytics tracking
+
+### Feature Callback
+
+The `feature` callback executes when the user is allowed access:
+
+```tsx
+registerPlacement({
+  placement: "premium_export",
+  feature: () => {
+    // User is subscribed or placement was skipped (holdout, etc.)
+    exportDocument();
+    showSuccessMessage();
+  },
+});
+```
+
+<Note>
+  The feature callback runs when:
+  - User is already subscribed
+  - User successfully purchases through the paywall
+  - User is in a holdout group
+  - No audience rules match (paywall not shown)
+</Note>
+
+## Lifecycle Callbacks
+
+The `usePlacement` hook accepts callback functions for all paywall events:
+
+```tsx
+const { registerPlacement } = usePlacement({
+  onPresent: (paywallInfo) => {
+    console.log("Paywall shown:", paywallInfo.name);
+    analytics.track("paywall_viewed", {
+      paywallId: paywallInfo.identifier,
+      placement: paywallInfo.presentedByEventWithName,
+    });
+  },
+
+  onDismiss: (paywallInfo, result) => {
+    console.log("Paywall dismissed:", result.type);
+    
+    if (result.type === "purchased") {
+      console.log("User purchased:", result.productId);
+      showThankYouMessage();
+    } else if (result.type === "declined") {
+      console.log("User declined the offer");
+    } else if (result.type === "restored") {
+      console.log("User restored purchases");
+    }
+  },
+
+  onSkip: (reason) => {
+    console.log("Paywall skipped:", reason.type);
+    
+    if (reason.type === "Holdout") {
+      console.log("User in holdout group:", reason.experiment.id);
+    } else if (reason.type === "NoAudienceMatch") {
+      console.log("User doesn't match audience rules");
+    } else if (reason.type === "PlacementNotFound") {
+      console.error("Placement not configured in dashboard");
+    }
+  },
+
+  onError: (error) => {
+    console.error("Paywall error:", error);
+    // Log to error tracking
+  },
+});
+```
+
+### Callback Types
+
+#### onPresent
+
+Called when a paywall is displayed to the user.
+
+```tsx
+onPresent: (paywallInfo: PaywallInfo) => void
+```
+
+The `paywallInfo` object includes:
+- `identifier` - Unique paywall ID
+- `name` - Paywall name from dashboard
+- `products` - Available products
+- `experiment` - A/B test information
+- `presentedByEventWithName` - The placement that triggered it
+- And more (see `/home/daytona/workspace/source/src/SuperwallExpoModule.types.ts:392`)
+
+#### onDismiss
+
+Called when the paywall is closed.
+
+```tsx
+onDismiss: (paywallInfo: PaywallInfo, result: PaywallResult) => void
+```
+
+The `result` object can be:
+
+```tsx
+// User purchased
+{ type: "purchased", productId: "premium_monthly" }
+
+// User declined/closed
+{ type: "declined" }
+
+// User restored purchases
+{ type: "restored" }
+```
+
+#### onSkip
+
+Called when a paywall is not shown.
+
+```tsx
+onSkip: (reason: PaywallSkippedReason) => void
+```
+
+Possible reasons:
+
+```tsx
+// User in experiment holdout group
+{ type: "Holdout", experiment: Experiment }
+
+// User doesn't match targeting rules
+{ type: "NoAudienceMatch" }
+
+// Placement not found in dashboard
+{ type: "PlacementNotFound" }
+```
+
+#### onError
+
+Called when an error occurs during paywall presentation.
+
+```tsx
+onError: (error: string) => void
+```
+
+## Paywall State
+
+The hook returns a `state` object tracking the current paywall status:
+
+```tsx
+const { registerPlacement, state } = usePlacement();
+
+console.log(state.status); // "idle" | "presented" | "dismissed" | "skipped" | "error"
+```
+
+### State Types
+
+```tsx
+type PaywallState =
+  | { status: "idle" }
+  | { status: "presented"; paywallInfo: PaywallInfo }
+  | { status: "dismissed"; result: PaywallResult }
+  | { status: "skipped"; reason: PaywallSkippedReason }
+  | { status: "error"; error: string }
+```
+
+### Using State in UI
+
+```tsx
+function FeatureButton() {
+  const { registerPlacement, state } = usePlacement();
+
+  return (
+    <View>
+      <Button
+        title="Unlock Feature"
+        onPress={() => registerPlacement({ placement: "feature" })}
+        disabled={state.status === "presented"}
+      />
+      
+      {state.status === "presented" && (
+        <Text>Viewing paywall: {state.paywallInfo.name}</Text>
+      )}
+      
+      {state.status === "error" && (
+        <Text style={{ color: "red" }}>Error: {state.error}</Text>
+      )}
+    </View>
+  );
+}
+```
+
+## Complete Example
+
+Here's a full implementation with all features:
+
+```tsx
+import { usePlacement } from "expo-superwall";
+import { View, Button, Text, Alert } from "react-native";
+import { useState } from "react";
+
+function PremiumFeatureScreen() {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  const { registerPlacement, state } = usePlacement({
+    onPresent: (paywallInfo) => {
+      console.log("Showing paywall:", paywallInfo.name);
+      
+      // Track analytics
+      analytics.track("paywall_viewed", {
+        paywallId: paywallInfo.identifier,
+        placement: paywallInfo.presentedByEventWithName,
+        products: paywallInfo.productIds,
+      });
+    },
+
+    onDismiss: (paywallInfo, result) => {
+      console.log("Paywall dismissed with result:", result.type);
+      
+      if (result.type === "purchased") {
+        Alert.alert(
+          "Purchase Successful!",
+          "Thank you for your purchase. Premium features unlocked!"
+        );
+        setIsUnlocked(true);
+      } else if (result.type === "restored") {
+        Alert.alert("Purchases Restored", "Your subscription has been restored.");
+        setIsUnlocked(true);
+      }
+    },
+
+    onSkip: (reason) => {
+      if (reason.type === "Holdout") {
+        console.log("User in holdout - experiment:", reason.experiment.id);
+        // Allow feature access for holdout group
+        setIsUnlocked(true);
+      } else if (reason.type === "PlacementNotFound") {
+        console.error("Placement 'premium_feature' not configured!");
+      }
+    },
+
+    onError: (error) => {
+      console.error("Paywall error:", error);
+      Alert.alert("Error", "Unable to load paywall. Please try again.");
+    },
+  });
+
+  const handleUnlockFeature = async () => {
+    await registerPlacement({
+      placement: "premium_feature",
+      params: {
+        source: "feature_screen",
+        feature_name: "Advanced Export",
+      },
+      feature: () => {
+        // User has access (subscribed or in holdout)
+        console.log("Feature unlocked!");
+        setIsUnlocked(true);
+      },
+    });
+  };
+
+  if (isUnlocked) {
+    return (
+      <View style={{ flex: 1, padding: 20 }}>
+        <Text style={{ fontSize: 24, marginBottom: 20 }}>Premium Feature</Text>
+        <Text>You have access to this premium feature!</Text>
+        {/* Premium feature UI */}
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+      <Text style={{ fontSize: 20, marginBottom: 20 }}>Premium Feature Locked</Text>
+      <Text style={{ marginBottom: 30, textAlign: "center", color: "#666" }}>
+        This feature requires a premium subscription.
+      </Text>
+      
+      <Button
+        title="Unlock Now"
+        onPress={handleUnlockFeature}
+        disabled={state.status === "presented"}
+      />
+      
+      {state.status === "presented" && (
+        <Text style={{ marginTop: 20 }}>Loading paywall...</Text>
+      )}
+    </View>
+  );
+}
+
+export default PremiumFeatureScreen;
+```
+
+## Multiple Placements
+
+You can use multiple `usePlacement` hooks for different features:
+
+```tsx
+function HomeScreen() {
+  const exportPaywall = usePlacement({
+    onDismiss: (info, result) => {
+      if (result.type === "purchased") {
+        handleExport();
+      }
+    },
+  });
+
+  const adsPaywall = usePlacement({
+    onDismiss: (info, result) => {
+      if (result.type === "purchased") {
+        disableAds();
+      }
+    },
+  });
+
+  return (
+    <View>
+      <Button
+        title="Export PDF"
+        onPress={() => exportPaywall.registerPlacement({ placement: "export" })}
+      />
+      <Button
+        title="Remove Ads"
+        onPress={() => adsPaywall.registerPlacement({ placement: "no_ads" })}
+      />
+    </View>
+  );
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive placement names">
+    Name placements based on features or user actions:
+    - ✅ `premium_export`, `remove_ads`, `onboarding`
+    - ❌ `paywall1`, `test`, `screen2`
+  </Accordion>
+
+  <Accordion title="Track analytics in callbacks">
+    Use callbacks to track important metrics:
+    ```tsx
+    onPresent: (info) => analytics.track("paywall_viewed"),
+    onDismiss: (info, result) => analytics.track("paywall_dismissed", { result }),
+    ```
+  </Accordion>
+
+  <Accordion title="Handle all result types">
+    Check all possible result types in `onDismiss`:
+    ```tsx
+    onDismiss: (info, result) => {
+      switch (result.type) {
+        case "purchased":
+          // Handle purchase
+          break;
+        case "restored":
+          // Handle restore
+          break;
+        case "declined":
+          // Handle dismissal
+          break;
+      }
+    },
+    ```
+  </Accordion>
+
+  <Accordion title="Pass meaningful parameters">
+    Include context in placement params:
+    ```tsx
+    params: {
+      source: "home_screen",
+      userTier: user.tier,
+      attemptsCount: exportAttempts,
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Managing Users" icon="user" href="/guides/managing-users">
+    Learn about user identification and attributes
+  </Card>
+  <Card title="Preloading Paywalls" icon="bolt" href="/guides/preloading-paywalls">
+    Improve performance by preloading paywalls
+  </Card>
+</CardGroup>

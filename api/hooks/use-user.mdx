@@ -1,0 +1,376 @@
+---
+title: "useUser"
+description: "React hook for managing user identity, attributes, and subscription status"
+---
+
+React hook for managing user-specific aspects of the Superwall SDK. This hook provides functions to identify the user, update user attributes, sign out the user, and access the current user's attributes and subscription status.
+
+It must be used within a component that is a descendant of `<SuperwallProvider />`.
+
+## Function Signature
+
+```typescript
+function useUser(): {
+  identify: (userId: string, options?: IdentifyOptions) => Promise<void>;
+  update: (attributes: Record<string, any> | ((old: Record<string, any>) => Record<string, any>)) => Promise<void>;
+  signOut: () => void;
+  refresh: () => Promise<Record<string, any>>;
+  setIntegrationAttributes: (attributes: IntegrationAttributes) => Promise<void>;
+  getIntegrationAttributes: () => Promise<Record<string, string>>;
+  getEntitlements: () => Promise<EntitlementsInfo>;
+  setSubscriptionStatus: (status: SubscriptionStatus) => Promise<void>;
+  subscriptionStatus?: SubscriptionStatus;
+  user?: UserAttributes | null;
+}
+```
+
+## Parameters
+
+This hook does not accept any parameters.
+
+## Return Value
+
+An object containing user-related state and functions:
+
+<ResponseField name="identify" type="(userId: string, options?: IdentifyOptions) => Promise<void>">
+  Identifies the current user with Superwall. This is typically called when a user logs in.
+  
+  **Parameters:**
+  - `userId: string` - The unique identifier for the user
+  - `options?: IdentifyOptions` - Optional parameters:
+    - `restorePaywallAssignments?: boolean` - If true, attempts to restore paywall assignments from a previous session for this user (defaults to false)
+</ResponseField>
+
+<ResponseField name="update" type="(attributes: Record<string, any> | ((old: Record<string, any>) => Record<string, any>)) => Promise<void>">
+  Updates the current user's attributes. Accepts either an object of attributes or a function that takes the old attributes and returns the new attributes.
+  
+  **Parameters:**
+  - `attributes: Record<string, any>` - Object of attributes to set/update
+  - OR `attributes: (old: Record<string, any>) => Record<string, any>` - Function that receives old attributes and returns new attributes
+</ResponseField>
+
+<ResponseField name="signOut" type="() => void">
+  Resets the user's identity, effectively signing them out from Superwall. This clears all user-specific data from the SDK.
+</ResponseField>
+
+<ResponseField name="refresh" type="() => Promise<Record<string, any>>">
+  Manually refreshes the user's attributes and subscription status from the Superwall servers. Returns a promise that resolves with the refreshed user attributes.
+</ResponseField>
+
+<ResponseField name="setIntegrationAttributes" type="(attributes: IntegrationAttributes) => Promise<void>">
+  Sets attributes for third-party integrations (e.g., attribution providers, analytics platforms). Used to link user IDs from services like Adjust, Amplitude, AppsFlyer, Mixpanel, etc.
+  
+  **Available integration attributes:**
+  - `adjustId`
+  - `amplitudeDeviceId`, `amplitudeUserId`
+  - `appsflyerId`
+  - `brazeAliasName`, `brazeAliasLabel`
+  - `onesignalId`
+  - `fbAnonId`
+  - `firebaseAppInstanceId`
+  - `iterableUserId`, `iterableCampaignId`, `iterableTemplateId`
+  - `mixpanelDistinctId`
+  - `mparticleId`
+  - `clevertapId`
+  - `airshipChannelId`
+  - `kochavaDeviceId`
+  - `tenjinId`
+  - `posthogUserId`
+  - `customerioId`
+</ResponseField>
+
+<ResponseField name="getIntegrationAttributes" type="() => Promise<Record<string, string>>">
+  Gets the currently set integration attributes.
+</ResponseField>
+
+<ResponseField name="getEntitlements" type="() => Promise<EntitlementsInfo>">
+  Retrieves the user's entitlements from Superwall's servers. Returns both active and inactive entitlements.
+  
+  **Returns:** `EntitlementsInfo`
+  - `active: Entitlement[]` - Active entitlements
+  - `inactive: Entitlement[]` - Inactive entitlements
+  
+  Each `Entitlement` contains:
+  - `id: string` - The entitlement identifier
+  - `type: EntitlementType` - The type (typically "SERVICE_LEVEL")
+</ResponseField>
+
+<ResponseField name="setSubscriptionStatus" type="(status: SubscriptionStatus) => Promise<void>">
+  Manually sets the subscription status of the user. This is typically called after a purchase or restore operation.
+  
+  **Parameters:**
+  - `status: SubscriptionStatus` - The subscription status:
+    - `{ status: "UNKNOWN" }` - Status unknown or unavailable
+    - `{ status: "INACTIVE" }` - No active subscription
+    - `{ status: "ACTIVE", entitlements: Entitlement[] }` - Active with entitlements
+</ResponseField>
+
+<ResponseField name="subscriptionStatus" type="SubscriptionStatus | undefined">
+  The current subscription status of the user.
+  
+  **Possible values:**
+  - `{ status: "UNKNOWN" }` - Initial state before fetched
+  - `{ status: "INACTIVE" }` - User does not have an active subscription
+  - `{ status: "ACTIVE", entitlements: Entitlement[] }` - User has active subscription with entitlements
+</ResponseField>
+
+<ResponseField name="user" type="UserAttributes | null | undefined">
+  An object containing the current user's attributes. `null` if no user is identified or after `signOut`. `undefined` initially before any user data is fetched or set.
+  
+  **UserAttributes:**
+  - `aliasId: string` - The user's alias ID, if set
+  - `appUserId: string` - The user's application-specific user ID
+  - `applicationInstalledAt: string` - ISO 8601 date string of app installation
+  - `seed: number` - Seed value for consistent variant assignments in experiments
+  - `[key: string]: any` - Custom attributes set via `update`
+</ResponseField>
+
+## Usage Examples
+
+### Basic user identification
+
+```typescript
+import { useUser } from 'expo-superwall';
+import { Button, Text, View } from 'react-native';
+
+function AuthScreen() {
+  const { identify, user, signOut } = useUser();
+
+  const handleLogin = async (userId: string) => {
+    await identify(userId);
+    console.log('User identified:', userId);
+  };
+
+  const handleLogout = () => {
+    signOut();
+    console.log('User signed out');
+  };
+
+  return (
+    <View>
+      {user ? (
+        <>
+          <Text>Logged in as: {user.appUserId}</Text>
+          <Button title="Logout" onPress={handleLogout} />
+        </>
+      ) : (
+        <Button title="Login" onPress={() => handleLogin('user_123')} />
+      )}
+    </View>
+  );
+}
+```
+
+### Update user attributes
+
+```typescript
+import { useUser } from 'expo-superwall';
+import { Button, View } from 'react-native';
+
+function ProfileScreen() {
+  const { update, user } = useUser();
+
+  const updateProfile = async () => {
+    // Update with an object
+    await update({
+      name: 'John Doe',
+      email: 'john@example.com',
+      isPremium: true,
+    });
+  };
+
+  const incrementCounter = async () => {
+    // Update with a function
+    await update((oldAttributes) => ({
+      ...oldAttributes,
+      loginCount: (oldAttributes.loginCount || 0) + 1,
+      lastLogin: new Date().toISOString(),
+    }));
+  };
+
+  return (
+    <View>
+      <Button title="Update Profile" onPress={updateProfile} />
+      <Button title="Increment Login Count" onPress={incrementCounter} />
+    </View>
+  );
+}
+```
+
+### Display subscription status
+
+```typescript
+import { useUser } from 'expo-superwall';
+import { Text, View } from 'react-native';
+
+function SubscriptionStatusBadge() {
+  const { subscriptionStatus, user } = useUser();
+
+  if (!subscriptionStatus) return null;
+
+  return (
+    <View>
+      <Text>User: {user?.appUserId}</Text>
+      <Text>Status: {subscriptionStatus.status}</Text>
+      
+      {subscriptionStatus.status === 'ACTIVE' && (
+        <View>
+          <Text>Active Entitlements:</Text>
+          {subscriptionStatus.entitlements.map((entitlement) => (
+            <Text key={entitlement.id}>- {entitlement.id}</Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+```
+
+### Restore paywall assignments
+
+```typescript
+import { useUser } from 'expo-superwall';
+import { useEffect } from 'react';
+
+function App() {
+  const { identify } = useUser();
+
+  useEffect(() => {
+    const restoreUserSession = async () => {
+      const savedUserId = await AsyncStorage.getItem('userId');
+      if (savedUserId) {
+        // Restore paywall assignments from previous session
+        await identify(savedUserId, {
+          restorePaywallAssignments: true,
+        });
+      }
+    };
+
+    restoreUserSession();
+  }, [identify]);
+
+  return <MainApp />;
+}
+```
+
+### Sync entitlements with subscription status
+
+```typescript
+import { useUser } from 'expo-superwall';
+import { Button } from 'react-native';
+
+function EntitlementsSync() {
+  const { getEntitlements, setSubscriptionStatus } = useUser();
+
+  const syncSubscription = async () => {
+    try {
+      // Fetch entitlements from Superwall
+      const entitlements = await getEntitlements();
+      
+      console.log('Active:', entitlements.active);
+      console.log('Inactive:', entitlements.inactive);
+      
+      // Update subscription status based on entitlements
+      if (entitlements.active.length > 0) {
+        await setSubscriptionStatus({
+          status: 'ACTIVE',
+          entitlements: entitlements.active,
+        });
+      } else {
+        await setSubscriptionStatus({
+          status: 'INACTIVE',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to sync entitlements:', error);
+    }
+  };
+
+  return <Button title="Sync Subscription" onPress={syncSubscription} />;
+}
+```
+
+### Set integration attributes
+
+```typescript
+import { useUser } from 'expo-superwall';
+import { useEffect } from 'react';
+
+function IntegrationsSetup() {
+  const { setIntegrationAttributes } = useUser();
+
+  useEffect(() => {
+    const setupIntegrations = async () => {
+      // Link user IDs from analytics platforms
+      await setIntegrationAttributes({
+        adjustId: 'adjust_user_123',
+        amplitudeUserId: 'amp_user_456',
+        mixpanelDistinctId: 'mp_user_789',
+      });
+    };
+
+    setupIntegrations();
+  }, [setIntegrationAttributes]);
+
+  return null;
+}
+```
+
+### Refresh user data
+
+```typescript
+import { useUser } from 'expo-superwall';
+import { Button, Text } from 'react-native';
+import { useState } from 'react';
+
+function UserDataRefresher() {
+  const { refresh, user } = useUser();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const refreshedAttributes = await refresh();
+      console.log('Refreshed:', refreshedAttributes);
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  return (
+    <>
+      <Text>User ID: {user?.appUserId}</Text>
+      <Button 
+        title={isRefreshing ? 'Refreshing...' : 'Refresh User Data'}
+        onPress={handleRefresh}
+        disabled={isRefreshing}
+      />
+    </>
+  );
+}
+```
+
+## Best Practices
+
+1. **Call `identify` on login**: Always identify users when they log in to ensure proper tracking and paywall targeting
+2. **Call `signOut` on logout**: Clear user data when users log out to prevent data leakage
+3. **Use the function form of `update`**: When updating based on previous values, use the function form to avoid race conditions
+4. **Sync subscription status**: After purchase or restore operations, update the subscription status using `setSubscriptionStatus`
+5. **Set integration attributes early**: Link third-party IDs as soon as they're available for accurate attribution
+
+## Related Hooks
+
+- [useSuperwall](/api/hooks/use-superwall) - Core SDK access hook
+- [usePlacement](/api/hooks/use-placement) - Paywall presentation hook
+- [useSuperwallEvents](/api/hooks/use-superwall-events) - Event subscription hook
+
+## Related Types
+
+- `UserAttributes` (useSuperwall.ts:19)
+- `IdentifyOptions` (useSuperwall.ts:37)
+- `SubscriptionStatus` (SuperwallExpoModule.types.ts:205)
+- `IntegrationAttributes` (SuperwallExpoModule.types.ts:121)
+- `EntitlementsInfo` (SuperwallExpoModule.types.ts:130)
+- `Entitlement` (SuperwallExpoModule.types.ts:64)

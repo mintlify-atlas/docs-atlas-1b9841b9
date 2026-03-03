@@ -1,0 +1,543 @@
+---
+title: Preloading Paywalls
+description: Improve paywall presentation performance by preloading content
+---
+
+Preloading paywalls reduces latency when presenting them to users by downloading and caching paywall content in advance.
+
+## Why Preload?
+
+Preloading paywalls helps you:
+
+- **Reduce presentation delay** - Paywalls show instantly without loading
+- **Improve user experience** - No loading spinners or delays
+- **Increase conversion** - Faster paywalls lead to higher conversion rates
+- **Handle poor connectivity** - Paywalls work even with slow networks
+
+<Warning>
+  Preloading downloads paywall assets and product information. This uses bandwidth and storage. Only preload paywalls you expect to show soon.
+</Warning>
+
+## Preloading All Paywalls
+
+Preload all configured paywalls at once:
+
+```tsx
+import { useSuperwall } from "expo-superwall";
+import { useEffect } from "react";
+
+function App() {
+  const { preloadAllPaywalls } = useSuperwall();
+
+  useEffect(() => {
+    // Preload all paywalls on app launch
+    preloadAllPaywalls();
+  }, []);
+
+  return <YourApp />;
+}
+```
+
+### Automatic Preloading
+
+Enable automatic preloading in the provider configuration:
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      options={{
+        paywalls: {
+          shouldPreload: true,  // Automatically preload all paywalls
+        },
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+```
+
+<Note>
+  When `shouldPreload` is `true`, the SDK automatically preloads all paywalls after configuration completes.
+</Note>
+
+## Preloading Specific Paywalls
+
+Preload only the paywalls you expect to show:
+
+```tsx
+import { useSuperwall } from "expo-superwall";
+import { useEffect } from "react";
+
+function App() {
+  const { preloadPaywalls } = useSuperwall();
+
+  useEffect(() => {
+    // Preload specific placements
+    preloadPaywalls([
+      "onboarding",
+      "premium_feature",
+      "remove_ads",
+    ]);
+  }, []);
+
+  return <YourApp />;
+}
+```
+
+### Strategic Preloading
+
+Preload paywalls based on user journey:
+
+```tsx
+import { useSuperwall } from "expo-superwall";
+import { useEffect } from "react";
+
+function UserJourneyPreloader() {
+  const { preloadPaywalls } = useSuperwall();
+
+  useEffect(() => {
+    // Preload onboarding paywall immediately
+    preloadPaywalls(["onboarding"]);
+  }, []);
+
+  const preloadFeaturePaywalls = () => {
+    // Preload feature paywalls when user explores features
+    preloadPaywalls([
+      "export_pdf",
+      "advanced_filters",
+      "cloud_sync",
+    ]);
+  };
+
+  const preloadUpgradePaywall = () => {
+    // Preload when user shows upgrade intent
+    preloadPaywalls(["premium_upgrade"]);
+  };
+
+  return {
+    preloadFeaturePaywalls,
+    preloadUpgradePaywall,
+  };
+}
+```
+
+## Preloading Timing
+
+<Steps>
+  <Step title="On App Launch">
+    Preload critical paywalls immediately:
+    ```tsx
+    useEffect(() => {
+      preloadPaywalls(["onboarding"]);
+    }, []);
+    ```
+  </Step>
+
+  <Step title="After Onboarding">
+    Preload feature paywalls after onboarding completes:
+    ```tsx
+    const handleOnboardingComplete = async () => {
+      // User finished onboarding
+      await completeOnboarding();
+      
+      // Preload feature paywalls
+      preloadPaywalls(["premium_features", "remove_ads"]);
+    };
+    ```
+  </Step>
+
+  <Step title="Before Feature Access">
+    Preload before user attempts to use premium features:
+    ```tsx
+    function FeatureList() {
+      const { preloadPaywalls } = useSuperwall();
+
+      const handleFeatureHover = (feature: string) => {
+        // Preload when user hovers over premium feature
+        if (feature === "advanced_export") {
+          preloadPaywalls(["export_paywall"]);
+        }
+      };
+
+      return <FeatureGrid onFeatureHover={handleFeatureHover} />;
+    }
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Preload high-traffic placements first">
+    Prioritize paywalls users are most likely to see:
+    ```tsx
+    // ✅ Good - preload most important placements
+    useEffect(() => {
+      preloadPaywalls([
+        "onboarding",        // Shown to all new users
+        "export",            // Most used feature
+        "remove_ads",        // High conversion
+      ]);
+    }, []);
+    ```
+  </Accordion>
+
+  <Accordion title="Don't preload too many paywalls">
+    Preloading consumes bandwidth and storage. Be selective:
+    ```tsx
+    // ✅ Good - preload 2-3 important paywalls
+    preloadPaywalls(["onboarding", "premium"]);
+
+    // ❌ Bad - preloading 10+ paywalls wastes resources
+    preloadPaywalls(["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]);
+    ```
+  </Accordion>
+
+  <Accordion title="Preload after network-intensive operations">
+    Wait until app is fully loaded:
+    ```tsx
+    useEffect(() => {
+      // Wait for critical data to load
+      Promise.all([
+        loadUserData(),
+        loadAppConfig(),
+      ]).then(() => {
+        // Now preload paywalls
+        preloadPaywalls(["premium"]);
+      });
+    }, []);
+    ```
+  </Accordion>
+
+  <Accordion title="Check network connectivity">
+    Only preload on WiFi for large paywalls:
+    ```tsx
+    import NetInfo from "@react-native-community/netinfo";
+
+    useEffect(() => {
+      NetInfo.fetch().then((state) => {
+        // Only preload on WiFi
+        if (state.type === "wifi") {
+          preloadAllPaywalls();
+        } else {
+          // Preload only critical paywall on cellular
+          preloadPaywalls(["onboarding"]);
+        }
+      });
+    }, []);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Preloading Strategies
+
+<Tabs>
+  <Tab title="Aggressive">
+    Preload all paywalls immediately for instant presentation:
+    ```tsx
+    function App() {
+      const { preloadAllPaywalls } = useSuperwall();
+
+      useEffect(() => {
+        preloadAllPaywalls();
+      }, []);
+
+      return <YourApp />;
+    }
+    ```
+    **Pros:** Zero latency for paywall presentation
+    **Cons:** Uses more bandwidth and storage
+  </Tab>
+
+  <Tab title="Balanced">
+    Preload likely paywalls based on user behavior:
+    ```tsx
+    function App() {
+      const { preloadPaywalls } = useSuperwall();
+
+      useEffect(() => {
+        // Preload high-probability paywalls
+        preloadPaywalls([
+          "onboarding",
+          "feature_upgrade",
+        ]);
+      }, []);
+
+      return <YourApp />;
+    }
+    ```
+    **Pros:** Good balance of performance and resource usage
+    **Cons:** Some paywalls may still have slight delay
+  </Tab>
+
+  <Tab title="Conservative">
+    Only preload right before showing:
+    ```tsx
+    function FeatureButton() {
+      const { preloadPaywalls, registerPlacement } = useSuperwall();
+
+      const handlePress = async () => {
+        // Preload just before showing
+        await preloadPaywalls(["premium"]);
+        
+        // Then register placement
+        await registerPlacement({ placement: "premium" });
+      };
+
+      return <Button title="Unlock" onPress={handlePress} />;
+    }
+    ```
+    **Pros:** Minimal resource usage
+    **Cons:** User sees loading delay
+  </Tab>
+
+  <Tab title="Smart">
+    Preload based on user actions and analytics:
+    ```tsx
+    function SmartPreloader() {
+      const { preloadPaywalls } = useSuperwall();
+      const { user } = useUser();
+
+      useEffect(() => {
+        // Free users - preload upgrade paywalls
+        if (user?.plan === "free") {
+          preloadPaywalls(["upgrade", "trial"]);
+        }
+        
+        // Trial users - preload conversion paywalls
+        if (user?.plan === "trial") {
+          preloadPaywalls(["convert_to_paid"]);
+        }
+
+        // Power users - preload premium features
+        if (user?.documentsCreated > 10) {
+          preloadPaywalls(["pro_features"]);
+        }
+      }, [user]);
+
+      return null;
+    }
+    ```
+    **Pros:** Optimal resource usage with best UX
+    **Cons:** More complex implementation
+  </Tab>
+</Tabs>
+
+## Complete Example
+
+Here's a comprehensive preloading setup:
+
+```tsx
+import { SuperwallProvider, useSuperwall, useUser } from "expo-superwall";
+import { useEffect } from "react";
+import NetInfo from "@react-native-community/netinfo";
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      options={{
+        paywalls: {
+          shouldPreload: false,  // We'll handle preloading manually
+        },
+      }}
+    >
+      <PaywallPreloader />
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+
+function PaywallPreloader() {
+  const { preloadPaywalls } = useSuperwall();
+  const { user } = useUser();
+
+  useEffect(() => {
+    initializePreloading();
+  }, []);
+
+  useEffect(() => {
+    // Preload based on user state
+    if (user) {
+      preloadForUser(user);
+    }
+  }, [user]);
+
+  const initializePreloading = async () => {
+    try {
+      // Check network type
+      const netInfo = await NetInfo.fetch();
+      
+      if (netInfo.type === "wifi") {
+        // On WiFi - preload multiple paywalls
+        console.log("WiFi detected - preloading all critical paywalls");
+        await preloadPaywalls([
+          "onboarding",
+          "premium_features",
+          "remove_ads",
+        ]);
+      } else if (netInfo.type === "cellular") {
+        // On cellular - only preload critical paywall
+        console.log("Cellular detected - preloading essential paywall only");
+        await preloadPaywalls(["onboarding"]);
+      }
+    } catch (error) {
+      console.error("Failed to preload paywalls:", error);
+    }
+  };
+
+  const preloadForUser = async (user: any) => {
+    // Preload based on user attributes
+    const placements: string[] = [];
+
+    // Free users
+    if (!user.subscriptionStatus || user.subscriptionStatus === "INACTIVE") {
+      placements.push("upgrade", "trial_offer");
+    }
+
+    // Power users
+    if (user.documentsCreated > 10) {
+      placements.push("pro_features", "advanced_export");
+    }
+
+    // Users who completed onboarding
+    if (user.onboardingCompleted) {
+      placements.push("feature_discovery");
+    }
+
+    if (placements.length > 0) {
+      console.log("Preloading placements for user:", placements);
+      await preloadPaywalls(placements);
+    }
+  };
+
+  return null;
+}
+
+function YourApp() {
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Your app content */}
+    </View>
+  );
+}
+```
+
+## Monitoring Preload Performance
+
+Track preloading effectiveness:
+
+```tsx
+import { useSuperwallEvents } from "expo-superwall";
+
+function PreloadMonitor() {
+  useSuperwallEvents({
+    onPaywallPresent: (info) => {
+      // Track how long it took to show
+      const loadTime = info.webViewLoadDuration || 0;
+      
+      analytics.track("paywall_presented", {
+        paywall_id: info.identifier,
+        load_time_ms: loadTime,
+        was_preloaded: loadTime < 100, // Estimate
+      });
+    },
+  });
+
+  return null;
+}
+```
+
+## Configuration vs Manual Preloading
+
+<Tabs>
+  <Tab title="Configuration (Automatic)">
+    ```tsx
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      options={{
+        paywalls: {
+          shouldPreload: true,
+        },
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+    ```
+    ✅ Simple setup
+    ✅ Works immediately
+    ❌ Preloads all paywalls
+    ❌ No control over timing
+  </Tab>
+
+  <Tab title="Manual">
+    ```tsx
+    const { preloadPaywalls } = useSuperwall();
+
+    useEffect(() => {
+      preloadPaywalls(["onboarding", "premium"]);
+    }, []);
+    ```
+    ✅ Full control over what to preload
+    ✅ Control over timing
+    ✅ Can respond to user behavior
+    ❌ Requires more code
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Paywalls still show loading spinner">
+    Ensure you're preloading the correct placement:
+    ```tsx
+    // ✅ Correct - exact placement name
+    preloadPaywalls(["premium_feature"]);
+    registerPlacement({ placement: "premium_feature" });
+
+    // ❌ Wrong - mismatched names
+    preloadPaywalls(["premium"]);
+    registerPlacement({ placement: "premium_feature" });
+    ```
+  </Accordion>
+
+  <Accordion title="Preloading not working">
+    Check that SDK is configured before preloading:
+    ```tsx
+    const { preloadPaywalls, isConfigured } = useSuperwall();
+
+    useEffect(() => {
+      if (isConfigured) {
+        preloadPaywalls(["premium"]);
+      }
+    }, [isConfigured]);
+    ```
+  </Accordion>
+
+  <Accordion title="High memory usage">
+    Preload fewer paywalls at once:
+    ```tsx
+    // Instead of preloading all
+    // preloadAllPaywalls();
+
+    // Preload selectively
+    preloadPaywalls(["onboarding", "premium"]);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Displaying Paywalls" icon="credit-card" href="/guides/displaying-paywalls">
+    Learn how to present preloaded paywalls
+  </Card>
+  <Card title="Provider Setup" icon="gear" href="/guides/provider-setup">
+    Configure automatic preloading options
+  </Card>
+</CardGroup>

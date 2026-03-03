@@ -1,0 +1,206 @@
+---
+title: "SuperwallProvider"
+description: "Main provider component for initializing the Superwall SDK"
+---
+
+## Overview
+
+`SuperwallProvider` is the main provider component for the Superwall SDK. It initializes the SDK with your API key and configuration options, and should wrap the root of your application or the part of your app that requires Superwall functionality.
+
+The provider sets up necessary event listeners, handles deep linking, and manages the SDK configuration lifecycle.
+
+## Props
+
+<ParamField path="apiKeys" type="object" required>
+  Your Superwall API keys for each platform
+  
+  <Expandable title="properties">
+    <ParamField path="ios" type="string">
+      Your iOS API key from the Superwall dashboard
+    </ParamField>
+    <ParamField path="android" type="string">
+      Your Android API key from the Superwall dashboard
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="options" type="PartialSuperwallOptions">
+  Optional configuration options passed to the native SDK. See [SuperwallOptions](/api/types/superwall-options) for full details.
+  
+  Common options include:
+  - `paywalls`: Paywall appearance and behavior settings
+  - `logging`: SDK logging configuration
+  - `networkEnvironment`: "release" | "releaseCandidate" | "developer"
+  - `manualPurchaseManagement`: Enable custom purchase handling
+</ParamField>
+
+<ParamField path="onConfigurationError" type="(error: Error) => void">
+  Optional callback invoked when SDK configuration fails. Use this to:
+  - Track errors in your analytics service
+  - Show custom error UI to users
+  - Implement retry logic
+  - Log failures for debugging
+  
+  The SDK will gracefully handle offline scenarios and configuration failures to ensure your app doesn't hang in a loading state.
+</ParamField>
+
+<ParamField path="children" type="ReactNode" required>
+  Your app content that will have access to Superwall features
+</ParamField>
+
+## Basic Usage
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+
+export default function App() {
+  return (
+    <SuperwallProvider 
+      apiKeys={{ 
+        ios: "YOUR_IOS_API_KEY", 
+        android: "YOUR_ANDROID_API_KEY" 
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+```
+
+## With Loading States
+
+Combine with `SuperwallLoading` and `SuperwallLoaded` components to manage initialization states:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+} from "expo-superwall";
+import { ActivityIndicator } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider apiKeys={{ ios: "YOUR_API_KEY" }}>
+      <SuperwallLoading>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SuperwallLoading>
+      
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+```
+
+## With Error Handling
+
+Handle configuration errors using the `onConfigurationError` callback and `SuperwallError` component:
+
+```tsx
+import {
+  SuperwallProvider,
+  SuperwallLoading,
+  SuperwallLoaded,
+  SuperwallError,
+} from "expo-superwall";
+import { ActivityIndicator, View, Text, Button } from "react-native";
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      onConfigurationError={(error) => {
+        // Log to error tracking service
+        console.error("Superwall config failed:", error);
+        // Sentry.captureException(error);
+      }}
+    >
+      <SuperwallLoading>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SuperwallLoading>
+
+      <SuperwallError>
+        {(error) => (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontSize: 18, marginBottom: 10 }}>
+              Failed to initialize Superwall
+            </Text>
+            <Text style={{ color: "gray", marginBottom: 20 }}>{error}</Text>
+            <Button title="Retry" onPress={() => {/* retry logic */}} />
+          </View>
+        )}
+      </SuperwallError>
+
+      <SuperwallLoaded>
+        <MainAppScreen />
+      </SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+```
+
+## With Custom Options
+
+Configure SDK behavior with custom options:
+
+```tsx
+import { SuperwallProvider } from "expo-superwall";
+
+export default function App() {
+  return (
+    <SuperwallProvider
+      apiKeys={{ ios: "YOUR_API_KEY" }}
+      options={{
+        paywalls: {
+          shouldPreload: true,
+          isHapticFeedbackEnabled: true,
+          automaticallyDismiss: true,
+        },
+        logging: {
+          level: "debug",
+          scopes: ["all"],
+        },
+        networkEnvironment: "release",
+      }}
+    >
+      <YourApp />
+    </SuperwallProvider>
+  );
+}
+```
+
+## Key Features
+
+### Automatic Deep Link Handling
+
+The provider automatically sets up deep link listeners for Superwall functionality. It filters out Expo-specific deep links and platform URLs to avoid conflicts.
+
+### Configuration Lifecycle
+
+The provider manages the SDK configuration lifecycle:
+1. Checks if already configured to avoid re-initialization
+2. Validates API key for current platform
+3. Configures SDK with provided options
+4. Handles configuration errors gracefully
+5. Notifies error callback if configuration fails
+
+### Event Listener Setup
+
+Automatically initializes native event listeners for:
+- Paywall presentation and dismissal
+- Subscription status changes
+- Custom paywall actions
+- Deep link handling
+
+<Note>
+  The provider must wrap all components that use Superwall hooks like `useUser`, `usePlacement`, or `useSuperwall`.
+</Note>
+
+## See Also
+
+- [SuperwallLoading](/api/components/superwall-loading) - Display loading UI during initialization
+- [SuperwallLoaded](/api/components/superwall-loaded) - Render content when SDK is ready
+- [SuperwallError](/api/components/superwall-error) - Handle configuration errors
+- [SuperwallOptions](/api/types/superwall-options) - Configuration options reference

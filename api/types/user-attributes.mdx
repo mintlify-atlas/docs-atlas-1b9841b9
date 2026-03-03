@@ -1,0 +1,397 @@
+---
+title: UserAttributes
+description: User identification and custom attributes for targeting and personalization
+---
+
+`UserAttributes` represents the attributes of a user in the Superwall SDK. It includes both system-managed properties (like user ID and app install date) and custom attributes that you can set for targeting and personalization.
+
+## Definition
+
+```typescript
+interface UserAttributes {
+  aliasId: string
+  appUserId: string
+  applicationInstalledAt: string
+  seed: number
+  [key: string]: any | null
+}
+```
+
+## Properties
+
+<ResponseField name="aliasId" type="string" required>
+  The user's alias ID, if set.
+  
+  An alias allows you to associate multiple user IDs with the same user profile.
+</ResponseField>
+
+<ResponseField name="appUserId" type="string" required>
+  The user's application-specific user ID.
+  
+  This is the primary identifier for the user in your app. Set this using `identify()`.
+</ResponseField>
+
+<ResponseField name="applicationInstalledAt" type="string" required>
+  The ISO 8601 date string representation of when the application was installed on the user's device.
+  
+  Example: `"2024-01-15T10:30:00.000Z"`
+</ResponseField>
+
+<ResponseField name="seed" type="number" required>
+  A seed value associated with the user, used for consistent variant assignments in experiments.
+  
+  This ensures that a user always sees the same paywall variant in an A/B test.
+</ResponseField>
+
+<ResponseField name="[key: string]" type="any | null">
+  Custom attributes that can be set for the user.
+  
+  These can be of any type and are used for targeting rules, personalization, and analytics.
+  
+  Set custom attributes using `setUserAttributes()`.
+</ResponseField>
+
+## Usage
+
+### Getting User Attributes
+
+```typescript
+import { useUser } from 'expo-superwall'
+
+function UserProfile() {
+  const { user } = useUser()
+  
+  if (!user) {
+    return <Text>No user identified</Text>
+  }
+  
+  return (
+    <View>
+      <Text>User ID: {user.appUserId}</Text>
+      <Text>Installed: {user.applicationInstalledAt}</Text>
+      <Text>Alias: {user.aliasId}</Text>
+    </View>
+  )
+}
+```
+
+### Setting Custom Attributes
+
+```typescript
+import { useUser } from 'expo-superwall'
+
+function UserOnboarding() {
+  const { setUserAttributes } = useUser()
+  
+  const completeOnboarding = async (userInfo: any) => {
+    await setUserAttributes({
+      onboarding_completed: true,
+      preferred_language: userInfo.language,
+      user_tier: 'free',
+      signup_date: new Date().toISOString(),
+      age_group: userInfo.ageGroup,
+      interests: userInfo.interests
+    })
+  }
+  
+  return <OnboardingFlow onComplete={completeOnboarding} />
+}
+```
+
+### Identifying Users
+
+```typescript
+import { useUser } from 'expo-superwall'
+
+function AuthFlow() {
+  const { identify, setUserAttributes } = useUser()
+  
+  const handleLogin = async (userId: string, userData: any) => {
+    // Identify the user
+    await identify(userId)
+    
+    // Set additional user attributes
+    await setUserAttributes({
+      email: userData.email,
+      name: userData.name,
+      account_type: userData.accountType,
+      registration_date: userData.createdAt
+    })
+  }
+  
+  return <LoginForm onLogin={handleLogin} />
+}
+```
+
+### Reading Custom Attributes
+
+```typescript
+import { useUser } from 'expo-superwall'
+
+function WelcomeMessage() {
+  const { user } = useUser()
+  
+  // Access custom attributes
+  const userName = user?.name as string | undefined
+  const isPremium = user?.user_tier === 'premium'
+  const onboardingComplete = user?.onboarding_completed as boolean
+  
+  if (!onboardingComplete) {
+    return <OnboardingPrompt />
+  }
+  
+  return (
+    <View>
+      <Text>Welcome back, {userName || 'there'}!</Text>
+      {isPremium && <PremiumBadge />}
+    </View>
+  )
+}
+```
+
+### Analytics and Tracking
+
+```typescript
+import { useEffect } from 'react'
+import { useUser } from 'expo-superwall'
+import * as Analytics from './analytics'
+
+function AnalyticsTracker() {
+  const { user } = useUser()
+  
+  useEffect(() => {
+    if (user) {
+      // Track user properties in your analytics platform
+      Analytics.setUserProperties({
+        userId: user.appUserId,
+        installDate: user.applicationInstalledAt,
+        userTier: user.user_tier,
+        onboardingComplete: user.onboarding_completed
+      })
+    }
+  }, [user])
+  
+  return null
+}
+```
+
+### Conditional Content Based on Attributes
+
+```typescript
+import { useUser } from 'expo-superwall'
+
+function PersonalizedContent() {
+  const { user } = useUser()
+  
+  // Show different content based on user attributes
+  const userInterests = user?.interests as string[] | undefined
+  const preferredLanguage = user?.preferred_language as string | undefined
+  
+  return (
+    <View>
+      {userInterests?.includes('sports') && <SportsSection />}
+      {userInterests?.includes('news') && <NewsSection />}
+      
+      {preferredLanguage === 'es' && <SpanishContent />}
+      {preferredLanguage === 'fr' && <FrenchContent />}
+    </View>
+  )
+}
+```
+
+### Updating Attributes Over Time
+
+```typescript
+import { useUser } from 'expo-superwall'
+
+function ProgressTracker() {
+  const { setUserAttributes } = useUser()
+  
+  const updateProgress = async (level: number, achievements: string[]) => {
+    await setUserAttributes({
+      current_level: level,
+      achievements: achievements,
+      last_active: new Date().toISOString(),
+      total_sessions: (user?.total_sessions as number || 0) + 1
+    })
+  }
+  
+  return <GameProgress onLevelComplete={updateProgress} />
+}
+```
+
+### Type-Safe Custom Attributes
+
+```typescript
+import type { UserAttributes } from 'expo-superwall'
+
+// Define your custom attributes structure
+interface MyUserAttributes extends UserAttributes {
+  email?: string
+  name?: string
+  user_tier: 'free' | 'premium' | 'enterprise'
+  onboarding_completed: boolean
+  preferences?: {
+    notifications: boolean
+    theme: 'light' | 'dark'
+  }
+}
+
+function TypeSafeComponent() {
+  const { user, setUserAttributes } = useUser()
+  const typedUser = user as MyUserAttributes | null
+  
+  const updatePreferences = async () => {
+    await setUserAttributes({
+      preferences: {
+        notifications: true,
+        theme: 'dark'
+      }
+    })
+  }
+  
+  return (
+    <View>
+      <Text>Tier: {typedUser?.user_tier}</Text>
+      <Text>Theme: {typedUser?.preferences?.theme}</Text>
+    </View>
+  )
+}
+```
+
+## Resetting User Attributes
+
+```typescript
+import { useUser } from 'expo-superwall'
+
+function LogoutButton() {
+  const { reset } = useUser()
+  
+  const handleLogout = async () => {
+    // Reset clears the user identity and attributes
+    await reset()
+    
+    // Navigate to login screen
+    navigation.navigate('Login')
+  }
+  
+  return <Button title="Logout" onPress={handleLogout} />
+}
+```
+
+## Common Use Cases
+
+### User Segmentation
+
+```typescript
+// Set attributes for paywall targeting
+await setUserAttributes({
+  user_segment: 'power_user',
+  lifetime_value: 150.00,
+  churn_risk: 'low',
+  engagement_score: 85
+})
+```
+
+### A/B Testing
+
+```typescript
+// The seed value ensures consistent variant assignment
+const variant = user.seed % 2 === 0 ? 'A' : 'B'
+```
+
+### Feature Flags
+
+```typescript
+// Use attributes to control feature access
+const canAccessBetaFeatures = user?.beta_tester === true
+```
+
+### Personalization
+
+```typescript
+// Personalize content based on user data
+const lastPurchaseDate = user?.last_purchase_date as string
+const daysSinceLastPurchase = calculateDays(lastPurchaseDate)
+
+if (daysSinceLastPurchase > 30) {
+  showReengagementOffer()
+}
+```
+
+## Best Practices
+
+<Tip>
+**Use consistent naming conventions** for custom attributes. We recommend snake_case for attribute keys to match Superwall's dashboard conventions.
+</Tip>
+
+<Warning>
+**Don't store sensitive data** in user attributes. Attributes are sent to Superwall's servers and should not include passwords, payment information, or other sensitive personal data.
+</Warning>
+
+<Info>
+**Set attributes early** in your app lifecycle to ensure they're available for paywall targeting rules from the first session.
+</Info>
+
+```typescript
+// ✅ Good - Set attributes after login
+const handleLogin = async (userId: string) => {
+  await identify(userId)
+  await setUserAttributes({
+    account_type: 'premium',
+    signup_source: 'mobile_app'
+  })
+}
+
+// ❌ Bad - Don't store sensitive data
+await setUserAttributes({
+  password: '123456', // Never do this!
+  credit_card: '4111111111111111' // Never do this!
+})
+```
+
+## Attribute Value Types
+
+Custom attributes can be any JSON-serializable value:
+
+```typescript
+await setUserAttributes({
+  // Strings
+  username: 'john_doe',
+  
+  // Numbers
+  age: 25,
+  score: 1500,
+  
+  // Booleans
+  is_premium: true,
+  completed_onboarding: false,
+  
+  // Arrays
+  interests: ['sports', 'music', 'gaming'],
+  recent_purchases: [123, 456, 789],
+  
+  // Objects
+  preferences: {
+    theme: 'dark',
+    notifications: true
+  },
+  
+  // Dates (as ISO strings)
+  last_login: new Date().toISOString(),
+  
+  // Null to remove an attribute
+  temporary_flag: null
+})
+```
+
+## Related Types
+
+- [SubscriptionStatus](/api/types/subscription-status) - User's subscription state
+- [PaywallInfo](/api/types/paywall-info) - Paywall configuration and metadata
+- [SuperwallOptions](/api/types/superwall-options) - SDK configuration options
+
+## Related Hooks
+
+- [useUser](/api/hooks/use-user) - Access and manage user data
+- [useSuperwall](/api/hooks/use-superwall) - Core SDK functionality
